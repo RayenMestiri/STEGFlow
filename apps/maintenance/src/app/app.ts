@@ -218,6 +218,7 @@ export class App implements OnInit, OnDestroy {
   );
 
   private fieldMap?: MapLibreMap;
+  private fieldMapInitialization?: Promise<void>;
   private mapElement?: HTMLDivElement;
   private teamMapMarker?: Marker;
   private destinationMapMarker?: Marker;
@@ -726,6 +727,10 @@ export class App implements OnInit, OnDestroy {
         this.initializeReport(dashboard.activeMission);
         if (!dashboard.activeMission) {
           this.stopGps();
+          this.destinationMapMarker?.remove();
+          this.destinationMapMarker = undefined;
+          this.teamMapMarker?.remove();
+          this.teamMapMarker = undefined;
           this.fieldMap?.remove();
           this.fieldMap = undefined;
           this.mapElement = undefined;
@@ -837,10 +842,30 @@ export class App implements OnInit, OnDestroy {
       await this.renderMissionOnMap();
       return;
     }
+
+    if (!this.fieldMapInitialization) {
+      this.fieldMapInitialization = this.createFieldMap(element, mission).finally(
+        () => {
+          this.fieldMapInitialization = undefined;
+        },
+      );
+    }
+    await this.fieldMapInitialization;
+  }
+
+  private async createFieldMap(
+    element: HTMLDivElement,
+    mission: MaintenanceMission,
+  ): Promise<void> {
     const destination =
       mission.incident?.location?.coordinates ?? [10.1855, 36.8375];
     const team = mission.lastPosition?.coordinates;
-    this.fieldMap = await createStegMap(element, team ?? destination, 13.1);
+    const map = await createStegMap(element, team ?? destination, 13.1);
+    if (this.mapElement !== element || !this.mission()) {
+      map.remove();
+      return;
+    }
+    this.fieldMap = map;
     whenStegMapReady(this.fieldMap, () => {
       this.mapReady.set(true);
       this.fieldMap?.resize();

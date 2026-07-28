@@ -14,12 +14,9 @@ export class MediaService {
   private readonly serverSideEncryption?: 'AES256' | 'aws:kms';
 
   constructor(private readonly config: ConfigService) {
-    const cloudName = this.config.get<string>('CLOUDINARY_CLOUD_NAME', 'roarxt0j');
-    const apiKey = this.config.get<string>('CLOUDINARY_API_KEY', '879564454732789');
-    const apiSecret = this.config.get<string>(
-      'CLOUDINARY_API_SECRET',
-      '5aCnzAoGCTPGoPQAMY6sEr65k8Y',
-    );
+    const cloudName = this.config.getOrThrow<string>('CLOUDINARY_CLOUD_NAME');
+    const apiKey = this.config.getOrThrow<string>('CLOUDINARY_API_KEY');
+    const apiSecret = this.config.getOrThrow<string>('CLOUDINARY_API_SECRET');
 
     this.bucket = config.get('S3_BUCKET', 'stegflow-media');
     this.publicUrl = config.get('S3_PUBLIC_URL', 'http://localhost:9000');

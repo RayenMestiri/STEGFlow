@@ -1,150 +1,75 @@
-# 📐 Architecture Technique STEGFlow
+# Architecture STEGFlow — MEAN
 
-Ce document détaille les principes d'architecture logicielle, la modélisation des données géospatiales, le flux d'événements et la stratégie de sécurité de la plateforme **STEGFlow**.
-
----
-
-## 🏛️ Vue d'Ensemble des Composants
-
-La plateforme adopte une architecture modulaire en **Monorepo Angular + NestJS**, favorisant le partage de types TypeScript, de modèles DTO et de composants cartographiques.
-
-```mermaid
-classDiagram
-    class SharedDataAccess {
-        +AuthService
-        +StegApiService
-        +createStegMap()
-        +addStegMarker()
-        +drawStegRoute()
-    }
-    class AdminApp {
-        +DashboardComponent
-        +OutagePlanner
-        +DispatchCenter
-    }
-    class CitizenPWA {
-        +IncidentReporter
-        +LiveTracker
-        +SafetyGuide
-    }
-    class MaintenanceApp {
-        +MissionDashboard
-        +GPSTracker
-        +CloudinaryCamera
-    }
-    class NestAPI {
-        +AuthModule
-        +IncidentsModule
-        +MissionsModule
-        +MediaModule (Cloudinary)
-        +NotificationsModule (BullMQ)
-    }
-
-    AdminApp --> SharedDataAccess
-    CitizenPWA --> SharedDataAccess
-    MaintenanceApp --> SharedDataAccess
-    SharedDataAccess --> NestAPI : HTTP / WebSockets
-```
-
----
-
-## 🔄 Flux d'une Intervention Terrain (Sequence Diagram)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor C as Citoyen (PWA)
-    actor S as Superviseur (Admin)
-    actor T as Technicien (STEGField)
-    participant API as API NestJS Core
-    participant Q as BullMQ / Redis
-    participant CL as Cloudinary CDN
-    participant DB as PostgreSQL + PostGIS
-
-    C->>CL: Upload de la photo de l'incident
-    CL-->>C: URL Sécurisée (https://res.cloudinary.com/...)
-    C->>API: Signalement d'incident (GPS + Photo URL)
-    API->>DB: Enregistrement Incident (Status: Reported)
-    API-->>S: Diffusion WebSocket (Nouvel Incident)
-
-    S->>API: Affectation à l'Équipe 12 (Création Mission)
-    API->>DB: Update Incident (Status: Dispatched) & Create Mission
-    API-->>T: Notification Push & WebSocket (Nouvelle Mission)
-
-    T->>API: Mise à jour Statut ("En déplacement" / "Sur place")
-    T->>API: Transmission Coordonnées GPS Temps Réel
-    API-->>S: Position Exacte (Carte Supervision)
-    API-->>C: Position Floutée (Approximative PWA)
-
-    T->>API: Validation Rétablissement + Preuve Réparation
-    API->>DB: Update Status ("Restored" -> "Closed")
-    API->>Q: Envoi Notification Clôture (SMS / Push)
-    Q-->>C: Notification "Courant Rétabli"
-```
-
----
-
-## 🗺️ Gestion des Données Géospatiales (PostGIS)
-
-L'API exploite les capacités spatiales de **PostGIS** pour gérer la topologie du réseau électrique :
-
-- **`Point` (Geometry SRID 4326)** : 
-  - Emplacement des incidents déclarés par les citoyens.
-  - Position du matériel (compteurs, transformateurs).
-  - Position GPS instantanée transmise par le smartphone des techniciens.
-- **`LineString`** :
-  - Lignes électriques aériennes et souterraines (départs Moyenne Tension).
-  - Tracé d'itinéraire de la mission de maintenance.
-- **`Polygon`** :
-  - Zones d'alimentation électrique et périmètres impactés par les coupures programmées.
-  - Calcul automatique d'intersection spatiale (`ST_Intersects`) pour déterminer les abonnés concernés.
-
-### 🛡️ Obfuscation des Coordonnées GPS pour les Citoyens
-Pour des raisons de sécurité du personnel de maintenance, la position GPS transmise sur le portail citoyen fait l'objet d'un traitement géométrique :
-1. Arrondi des coordonnées à 2 décimales.
-2. Injection d'un bruit aléatoire dans un rayon de 300 mètres.
-3. Restriction de l'affichage à la durée exacte de la mission.
-
----
-
-## 📸 Pipeline Multimédia Hybride (Cloudinary + S3)
+## Vue générale
 
 ```mermaid
 flowchart LR
-    File[Photo Preuve Multer] --> Controller[MediaController]
-    Controller --> Service[MediaService]
-    
-    Service -->|Priorité 1| Cloudinary[Cloudinary API]
-    Cloudinary -->|Success| CDN[URL HTTPS CDN Cloudinary]
-    
-    Service -.->|Fallback si erreur| MinIO[MinIO / S3 Storage]
-    MinIO -.-> S3URL[URL S3 Locale]
+  A["Angular Admin"] --> API["Express REST API"]
+  C["Angular Citizen PWA"] --> API
+  M["Angular Maintenance"] --> API
+  API --> DB[("MongoDB Atlas")]
+  API --> Q["Redis / BullMQ"]
+  API --> IMG["Cloudinary"]
+  M -->|"GPS mission active"| WS["Socket.IO /operations"]
+  WS --> A
+  WS --> C
 ```
 
-1. **Formatage automatique** : Conversion transparente vers les formats modernes (AVIF/WebP) et dimensionnement dynamique selon l'écran du client.
-2. **Métadonnées** : Suppression des données EXIF sensibles (GPS interne de la photo) avant publication.
-3. **Résilience** : En cas d'indisponibilité du réseau externe, le système bascule sur le bucket S3 local MinIO.
+Le backend réside dans `backend/`. Les applications Angular ne contiennent
+aucun secret et consomment toutes le même préfixe `/api/v1`.
 
----
+## Collections MongoDB
 
-## 🔐 Modèle de Sécurité & RBAC
+- `users`
+- `auth_events`
+- `outages`
+- `incidents`
+- `missions`
+- `field_teams`
+- `notification_campaigns`
+- `audit_logs`
+- `system_settings`
+- `citizen_confirmations`
 
-L'accès à l'API est protégé par une double couche d'authentification et d'autorisation :
+Les incidents, missions et équipes utilisent des points GeoJSON
+`{ type: "Point", coordinates: [longitude, latitude] }` avec index `2dsphere`.
 
-1. **JSON Web Token (JWT)** :
-   - Access Token à durée courte (15 minutes).
-   - Refresh Token sécurisé stocké dans un cookie `HttpOnly` et `SameSite=Strict`.
-2. **Matrice des Rôles (RBAC)** :
-   - `admin` / `supervisor` : Accès complet à la supervision, création de coupures, affectation et audit.
-   - `dispatcher` : Gestion des équipes terrain et des urgences.
-   - `technician` : Accès restreint aux missions attribuées à son équipe.
-   - `citizen` : Déclaration et suivi limité à son contrat et sa zone géographique.
+## Liaison des données citoyennes
 
----
+```mermaid
+flowchart TD
+  U["Utilisateur authentifié"] --> R{"Signalement créé par cet utilisateur ?"}
+  R -->|Oui| I["Incident personnel actif"]
+  R -->|Non| Z{"Profil géographique renseigné ?"}
+  Z -->|Oui| O["Coupure publique de la zone"]
+  Z -->|Non| N["Situation normale, aucune intervention"]
+  I --> MM{"Mission liée exactement à l'incident ?"}
+  MM -->|Oui| T["Chronologie et suivi approximatif"]
+  MM -->|Non| S["Signalement en attente, sans équipe fictive"]
+```
 
-## ⚡ Système de Files d'Attente (BullMQ & Redis)
+Une mission globale n’est jamais exposée à tous les citoyens.
 
-Les opérations lourdes sont déportées de l'Event Loop Node.js vers des workers asynchrones :
-- **Notification Queue** : Distribution massive des SMS et Push lors de l'activation d'une coupure programmée.
-- **Retry Strategy** : Reprise exponentielle avec backoff en cas d'échec de distribution.
-- **Dead Letter Queue (DLQ)** : Isolation des messages non délivrables pour analyse par les administrateurs.
+## Sécurité
+
+- JWT d’accès de courte durée.
+- Refresh token HttpOnly, rotation à chaque renouvellement.
+- Rôles `admin`, `supervisor`, `dispatcher`, `technician`, `citizen`.
+- Verrouillage temporaire après cinq échecs de connexion.
+- Limitation de débit sur login et inscription.
+- Validation Zod côté serveur.
+- Photos validées et stockées uniquement depuis Express.
+- Secrets chargés depuis `backend/.env`.
+- Position citoyenne arrondie ; position exacte réservée au pilotage.
+
+## Notifications
+
+L’API crée une campagne MongoDB puis publie un job BullMQ. Le worker met à jour
+les états `queued → sending → delivered/failed`. Les adaptateurs réels FCM, SMS
+et SMTP se branchent dans `notifications.service.ts`.
+
+## Déploiement
+
+Docker Compose démarre Redis, Express et les trois bundles Angular. MongoDB Atlas
+et Cloudinary restent des services managés externes. Les anciens services
+PostgreSQL/PostGIS et MinIO ne font plus partie du runtime.

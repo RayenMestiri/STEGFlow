@@ -1,182 +1,118 @@
-<div align="center">
+# STEGFlow
 
-# ⚡ STEGFlow
+Plateforme opérationnelle pour les citoyens, le centre de pilotage STEG et les
+équipes de maintenance.
 
-### **Plateforme Numérique Intelligente de Gestion Électrique & d'Interventions Terrain**
-*Conçue pour la Société Tunisienne de l'Électricité et du Gaz (STEG)*
+## Stack
 
-[![Angular](https://img.shields.io/badge/Angular-v21.2-dd0031?style=for-the-badge&logo=angular)](https://angular.dev/)
-[![NestJS](https://img.shields.io/badge/NestJS-v11.0-ea2845?style=for-the-badge&logo=nestjs)](https://nestjs.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-PostGIS-336791?style=for-the-badge&logo=postgresql)](https://postgis.net/)
-[![Redis](https://img.shields.io/badge/Redis-BullMQ-dc382d?style=for-the-badge&logo=redis)](https://redis.io/)
-[![Cloudinary](https://img.shields.io/badge/Cloudinary-Media_CDN-3448C5?style=for-the-badge&logo=cloudinary)](https://cloudinary.com/)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker)](https://www.docker.com/)
+- **Frontend** : Angular 21, PWA citoyenne, MapLibre et OpenStreetMap.
+- **Backend** : Node.js, Express 5 et TypeScript dans [`backend/`](backend/).
+- **Données** : MongoDB Atlas avec documents GeoJSON et index `2dsphere`.
+- **Temps réel** : Socket.IO pour les positions GPS et les étapes de mission.
+- **Asynchrone** : Redis + BullMQ pour les campagnes de notification.
+- **Photos** : Cloudinary, validation MIME et limite de 8 Mo.
+- **Sécurité** : JWT court, refresh token HttpOnly, rotation, RBAC, rate limiting,
+  verrouillage après échecs et journal d’audit.
 
-[Vue d'ensemble](#-vue-densemble) • [Applications & Portails](#-applications--portails) • [Architecture Système](#-architecture-syst%C3%A8me) • [Installation](#-installation-rapide) • [Comptes Demo](#-comptes-de-d%C3%A9monstration) • [Documentation API](#-documentation--api)
+## Applications
 
----
+| Espace | URL | Responsabilité |
+| --- | --- | --- |
+| Centre des opérations | <http://localhost:4200> | Coupures, incidents, équipes, notifications, audit et paramètres |
+| Citoyen | <http://localhost:4201> | Situation personnelle, carte publique, signalements et sécurité |
+| Équipe terrain | <http://localhost:4202> | Mission, GPS, diagnostic, photos, urgence et rapport |
+| API Express | <http://localhost:3000/api/v1> | API REST MEAN |
+| Documentation API | <http://localhost:3000/api/docs> | OpenAPI |
 
-</div>
+## Structure
 
-## 📖 Vue d'ensemble
-
-**STEGFlow** est une solution logicielle d'entreprise centralisée permettant d'optimiser le réseau électrique national, d'automatiser le suivi des pannes, de coordonner les équipes de maintenance sur le terrain en temps réel et de fournir un portal d'information transparent pour les citoyens.
-
-### 🌟 Fonctionnalités Clés
-- 🗺️ **Cartographie Géospatiale PostGIS & MapLibre** : Visualisation dynamique des réseaux basse/moyenne tension et routage précis des équipes d'intervention.
-- 📸 **Gestion Médias Cloudinary CDN** : Upload instantané et sécurisé des preuves photo terrain avec conversion dynamique et diffusion optimisée.
-- 📡 **Suivi Temps Réel & WebSockets** : Retransmission en direct de la position GPS des équipes et synchronisation bidirectionnelle du statut des interventions.
-- 🔔 **Alertes & Communications Automatisées** : Moteur de notification asynchrone propulsé par **BullMQ & Redis** (SMS, Push PWA, E-mail).
-- 🛡️ **Confidentialité & Obfuscation GPS** : Floutage géographique dynamique des positions techniciens côté citoyen pour garantir la sécurité terrain tout en maintenant un temps d'arrivée estimé (ETA) exact.
-
----
-
-## 💻 Applications & Portails
-
-STEGFlow se compose de 4 modules interconnectés au sein d'un monorepo ultra-performant :
-
-| Module | Rôle & Public Cible | Commande | URL Locale |
-| :--- | :--- | :---: | :---: |
-| 🏬 **Centre STEG (Admin)** | Dashboard de supervision globale, gestion du réseau, dispatching d'équipes et planification des coupures. | `npm run start:admin` | [`http://localhost:4200`](http://localhost:4200) |
-| 📱 **Portail Citoyen (PWA)** | PWA citoyenne pour la déclaration d'incidents avec photo, suivi live des interventions et état du réseau domestique. | `npm run start:citizen` | [`http://localhost:4201`](http://localhost:4201) |
-| 🛠️ **Équipe Maintenance** | Application mobile-first pour les techniciens sur le terrain (dossier d'intervention, navigation GPS, preuves Cloudinary, bouton SOS). | `npm run start:maintenance` | [`http://localhost:4202`](http://localhost:4202) |
-| ⚙️ **API Core (NestJS)** | API RESTful & WebSockets Gateway, orchestration PostgreSQL/PostGIS, files d'attente BullMQ et Media Engine. | `npm run start:api` | [`http://localhost:3000/api/v1`](http://localhost:3000/api/v1) |
-
----
-
-## 🏗️ Architecture Système
-
-```mermaid
-graph TD
-    subgraph Clients Frontend
-        A[🏬 Admin Center - Angular :4200]
-        B[📱 Citizen PWA - Angular :4201]
-        C[🛠️ Maintenance App - Angular :4202]
-    end
-
-    subgraph Backend Core NestJS :3000
-        D[API Gateway / REST & WebSockets]
-        E[Auth Service - JWT / RBAC]
-        F[Media Engine - Cloudinary Driver]
-        G[Queue Producer - BullMQ]
-    end
-
-    subgraph Infrastructure Services
-        H[(PostgreSQL + PostGIS)]
-        I[(Redis Cache & Queue)]
-        J[☁️ Cloudinary CDN]
-        K[(MinIO / S3 Backup Storage)]
-    end
-
-    A <--> D
-    B <--> D
-    C <--> D
-
-    D --> E
-    D --> F
-    D --> G
-
-    E --> H
-    F --> J
-    F -. Fallback .-> K
-    G --> I
-    D --> H
+```text
+backend/                   API Express/Mongoose indépendante
+  src/
+    config/                Validation de l’environnement
+    db/                    Connexion, données initiales et migration
+    middleware/            Auth, rôles, validation et erreurs
+    models/                Collections Mongoose
+    routes/                Routes REST par domaine
+    services/              Métier citoyen, mission, admin, média
+    realtime/              Socket.IO
+apps/
+  admin/                   Angular — centre des opérations
+  citizen/                 Angular PWA — citoyen
+  maintenance/             Angular — équipe terrain
+libs/shared-data-access/   Contrats API et composants partagés
 ```
 
----
+Le backend est volontairement séparé des applications frontend. L’ancien
+backend NestJS sous `apps/api` n’est plus référencé par les scripts ni par Docker.
 
-## 🚀 Installation Rapide
+## Configuration
 
-### Prérequis
-- **Node.js** `>= 20.x`
-- **npm** `>= 10.x`
-- **Docker Desktop** (recommandé pour la stack complète)
-
-### 1. Cloner le projet
-```bash
-git clone https://github.com/RayenMestiri/STEGFlow.git
-cd STEGFlow
+```powershell
+Copy-Item .env.example backend/.env
 ```
 
-### 2. Installer les dépendances
-```bash
+Renseigner dans `backend/.env` :
+
+- `MONGODB_URI`
+- `CLOUDINARY_URL`
+- `JWT_ACCESS_SECRET`
+- `JWT_REFRESH_SECRET`
+- `REDIS_URL`
+
+Le fichier réel est ignoré par Git. Aucune clé Cloudinary ou MongoDB ne doit être
+placée dans Angular, dans Docker Compose ou dans la documentation.
+
+## Démarrage
+
+### Docker
+
+```powershell
+docker compose up -d --build --remove-orphans
+```
+
+MongoDB est fourni par Atlas ; Docker démarre Redis, Express et les trois
+interfaces Angular.
+
+### Développement
+
+```powershell
 npm install
-npm --prefix apps/api install
+npm --prefix backend install
+npm run start:api
+npm run start:admin
+npm run start:citizen
+npm run start:maintenance
 ```
 
-### 3. Configurer l'environnement
-Copiez les fichiers de configuration `.env.example` :
-```bash
-cp .env.example .env
-cp .env.example apps/api/.env
+## Migration PostgreSQL vers MongoDB
+
+La migration conserve les identifiants, relations, historiques, positions
+GeoJSON, comptes et journaux :
+
+```powershell
+npm run migrate:postgres -- --replace
 ```
 
-> [!TIP]
-> Pour activer l'upload d'images direct sur Cloudinary, renseignez vos identifiants Cloudinary dans `.env` :
-> ```env
-> STORAGE_PROVIDER=cloudinary
-> CLOUDINARY_CLOUD_NAME=roarxt0j
-> CLOUDINARY_API_KEY=879564454732789
-> CLOUDINARY_API_SECRET=5aCnzAoGCTPGoPQAMY6sEr65k8Y
-> ```
+`--replace` ne doit être utilisé que pour une première bascule contrôlée. Sans
+ce paramètre, le script effectue des `upsert`.
 
----
+Les anciens mots de passe Argon2 restent valides : à la première connexion,
+ils sont automatiquement re-hachés avec le mécanisme du nouveau backend.
 
-## 🐳 Démarrage avec Docker Compose
+## Vérification
 
-Lancez l'ensemble des conteneurs (Base de données PostGIS, Redis, MinIO et les 4 applications) en une seule commande :
-
-```bash
-docker compose up --build -d
-```
-
-Une fois démarré, accédez directement aux interfaces :
-- **Supervision Admin** : `http://localhost:4200`
-- **Portail Citoyen** : `http://localhost:4201`
-- **Application Technicien** : `http://localhost:4202`
-- **Swagger Documentation** : `http://localhost:3000/api/docs`
-
----
-
-## 🔑 Comptes de Démonstration
-
-| Espace | E-mail | Mot de passe | Rôle RBAC |
-| :--- | :--- | :--- | :--- |
-| 🛡️ **Supervision STEG** | `superviseur@steg.tn` | `Admin2026!` | `admin`, `supervisor` |
-| 🛠️ **Équipe Terrain** | `technicien@steg.tn` | `Tech2026!` | `technician` |
-| 👤 **Citoyen** | `citoyen@steg.tn` | `Client2026!` | `citizen` |
-
-*Le bouton « Connexion Demo » présent sur chaque interface remplit automatiquement ces accès.*
-
----
-
-## 📸 Intégration Cloudinary Media Engine
-
-STEGFlow intègre un moteur multimédia hybride :
-- 🚀 **Cloudinary CDN** : Envoi immédiat des preuves d'incidents (compteurs endommagés, câbles à terre) avec transformation automatique (format WebP/AVIF, compression intelligente).
-- 📦 **MinIO / S3 Fallback** : Basculement transparent en stockage local/S3 si la connexion externe est interrompue.
-
----
-
-## 🧪 Tests & Validation
-
-Exécutez la suite de tests unitaires et de compilation :
-
-```bash
-# Valider les builds de toutes les applications Angular & NestJS
-npm run build:all
-
-# Exécuter les tests unitaires frontend
-npm test
-
-# Exécuter les tests unitaires API
+```powershell
+npm run test
 npm run test:api
+npm run build:all
 ```
 
----
+Comptes locaux de démonstration :
 
-## 📄 Licence & Crédits
+- `superviseur@steg.tn` / `Admin2026!`
+- `technicien@steg.tn` / `Tech2026!`
+- `citoyen@steg.tn` / `Client2026!`
 
-Projet développé pour la **Société Tunisienne de l'Électricité et du Gaz (STEG)**.  
-- 📚 **Guide de fonctionnement complet (Backend & Frontend)** : [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md)
-- 📐 **Spécifications d'architecture & schémas Mermaid** : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+Un compte citoyen neuf ne reçoit aucune mission, chronologie ou donnée de zone
+tant qu’il n’a pas de signalement ou de coupure réellement liée à son profil.
