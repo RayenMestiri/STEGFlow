@@ -1,45 +1,150 @@
-# Architecture STEGFlow
+# 📐 Architecture Technique STEGFlow
 
-## Applications
+Ce document détaille les principes d'architecture logicielle, la modélisation des données géospatiales, le flux d'événements et la stratégie de sécurité de la plateforme **STEGFlow**.
 
-- `apps/admin` — Angular : supervision, programmation des coupures, dispatch et notifications.
-- `apps/citizen` — Angular PWA : état d’une adresse, suivi live et signalements avec photos.
-- `apps/maintenance` — Angular mobile-first : mission, GPS, diagnostic, preuves terrain et clôture.
-- `apps/api` — NestJS : API, WebSocket, PostGIS, files BullMQ et stockage S3.
+---
 
-## Flux d’une coupure
+## 🏛️ Vue d'Ensemble des Composants
 
-1. Un agent sélectionne une zone électrique, un départ ou un périmètre PostGIS.
-2. L’API calcule les compteurs et contrats reliés à l’équipement concerné.
-3. Un superviseur valide l’opération lorsque la règle à deux niveaux est active.
-4. Une tâche idempotente est ajoutée dans BullMQ.
-5. Les workers distribuent les notifications Push, SMS et e-mail avec reprise exponentielle.
-6. Les changements de statut sont transmis aux trois applications par WebSocket.
-7. Les accusés de livraison et actions des agents sont conservés dans le journal d’audit.
+La plateforme adopte une architecture modulaire en **Monorepo Angular + NestJS**, favorisant le partage de types TypeScript, de modèles DTO et de composants cartographiques.
 
-## Flux d’une mission terrain
+```mermaid
+classDiagram
+    class SharedDataAccess {
+        +AuthService
+        +StegApiService
+        +createStegMap()
+        +addStegMarker()
+        +drawStegRoute()
+    }
+    class AdminApp {
+        +DashboardComponent
+        +OutagePlanner
+        +DispatchCenter
+    }
+    class CitizenPWA {
+        +IncidentReporter
+        +LiveTracker
+        +SafetyGuide
+    }
+    class MaintenanceApp {
+        +MissionDashboard
+        +GPSTracker
+        +CloudinaryCamera
+    }
+    class NestAPI {
+        +AuthModule
+        +IncidentsModule
+        +MissionsModule
+        +MediaModule (Cloudinary)
+        +NotificationsModule (BullMQ)
+    }
 
-`Affectée → Acceptée → En déplacement → Sur place → Diagnostic → Réparation → Tests → Rétablie → Clôturée`
+    AdminApp --> SharedDataAccess
+    CitizenPWA --> SharedDataAccess
+    MaintenanceApp --> SharedDataAccess
+    SharedDataAccess --> NestAPI : HTTP / WebSockets
+```
 
-La position précise est réservée à la supervision. Le citoyen reçoit une position approximative,
-légèrement différée, uniquement pendant la mission qui concerne sa zone.
+---
 
-## Données géographiques
+## 🔄 Flux d'une Intervention Terrain (Sequence Diagram)
 
-- `Point` : incident, compteur, véhicule ou dernière position d’une équipe.
-- `LineString` : câble et départ électrique.
-- `Polygon` : zone alimentée, zone de coupure ou périmètre d’intervention.
-- Les coordonnées publiques sont arrondies ou transformées avant diffusion.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Citoyen (PWA)
+    actor S as Superviseur (Admin)
+    actor T as Technicien (STEGField)
+    participant API as API NestJS Core
+    participant Q as BullMQ / Redis
+    participant CL as Cloudinary CDN
+    participant DB as PostgreSQL + PostGIS
 
-## Sécurité
+    C->>CL: Upload de la photo de l'incident
+    CL-->>C: URL Sécurisée (https://res.cloudinary.com/...)
+    C->>API: Signalement d'incident (GPS + Photo URL)
+    API->>DB: Enregistrement Incident (Status: Reported)
+    API-->>S: Diffusion WebSocket (Nouvel Incident)
 
-- Authentification OIDC/JWT et MFA pour les comptes internes.
-- RBAC : administrateur, superviseur, opérateur, dispatcher, technicien et citoyen.
-- Chiffrement des photos, URLs temporaires et suppression des métadonnées non nécessaires.
-- Journal d’audit append-only pour les validations, changements de statut et notifications.
-- Le suivi GPS est actif uniquement pendant une mission et s’arrête automatiquement à sa clôture.
+    S->>API: Affectation à l'Équipe 12 (Création Mission)
+    API->>DB: Update Incident (Status: Dispatched) & Create Mission
+    API-->>T: Notification Push & WebSocket (Nouvelle Mission)
 
-## Déploiement local
+    T->>API: Mise à jour Statut ("En déplacement" / "Sur place")
+    T->>API: Transmission Coordonnées GPS Temps Réel
+    API-->>S: Position Exacte (Carte Supervision)
+    API-->>C: Position Floutée (Approximative PWA)
 
-`compose.yaml` lance PostGIS, Redis, MinIO, l’API et les trois interfaces. Les secrets réels restent
-hors du dépôt et sont injectés par l’environnement de déploiement.
+    T->>API: Validation Rétablissement + Preuve Réparation
+    API->>DB: Update Status ("Restored" -> "Closed")
+    API->>Q: Envoi Notification Clôture (SMS / Push)
+    Q-->>C: Notification "Courant Rétabli"
+```
+
+---
+
+## 🗺️ Gestion des Données Géospatiales (PostGIS)
+
+L'API exploite les capacités spatiales de **PostGIS** pour gérer la topologie du réseau électrique :
+
+- **`Point` (Geometry SRID 4326)** : 
+  - Emplacement des incidents déclarés par les citoyens.
+  - Position du matériel (compteurs, transformateurs).
+  - Position GPS instantanée transmise par le smartphone des techniciens.
+- **`LineString`** :
+  - Lignes électriques aériennes et souterraines (départs Moyenne Tension).
+  - Tracé d'itinéraire de la mission de maintenance.
+- **`Polygon`** :
+  - Zones d'alimentation électrique et périmètres impactés par les coupures programmées.
+  - Calcul automatique d'intersection spatiale (`ST_Intersects`) pour déterminer les abonnés concernés.
+
+### 🛡️ Obfuscation des Coordonnées GPS pour les Citoyens
+Pour des raisons de sécurité du personnel de maintenance, la position GPS transmise sur le portail citoyen fait l'objet d'un traitement géométrique :
+1. Arrondi des coordonnées à 2 décimales.
+2. Injection d'un bruit aléatoire dans un rayon de 300 mètres.
+3. Restriction de l'affichage à la durée exacte de la mission.
+
+---
+
+## 📸 Pipeline Multimédia Hybride (Cloudinary + S3)
+
+```mermaid
+flowchart LR
+    File[Photo Preuve Multer] --> Controller[MediaController]
+    Controller --> Service[MediaService]
+    
+    Service -->|Priorité 1| Cloudinary[Cloudinary API]
+    Cloudinary -->|Success| CDN[URL HTTPS CDN Cloudinary]
+    
+    Service -.->|Fallback si erreur| MinIO[MinIO / S3 Storage]
+    MinIO -.-> S3URL[URL S3 Locale]
+```
+
+1. **Formatage automatique** : Conversion transparente vers les formats modernes (AVIF/WebP) et dimensionnement dynamique selon l'écran du client.
+2. **Métadonnées** : Suppression des données EXIF sensibles (GPS interne de la photo) avant publication.
+3. **Résilience** : En cas d'indisponibilité du réseau externe, le système bascule sur le bucket S3 local MinIO.
+
+---
+
+## 🔐 Modèle de Sécurité & RBAC
+
+L'accès à l'API est protégé par une double couche d'authentification et d'autorisation :
+
+1. **JSON Web Token (JWT)** :
+   - Access Token à durée courte (15 minutes).
+   - Refresh Token sécurisé stocké dans un cookie `HttpOnly` et `SameSite=Strict`.
+2. **Matrice des Rôles (RBAC)** :
+   - `admin` / `supervisor` : Accès complet à la supervision, création de coupures, affectation et audit.
+   - `dispatcher` : Gestion des équipes terrain et des urgences.
+   - `technician` : Accès restreint aux missions attribuées à son équipe.
+   - `citizen` : Déclaration et suivi limité à son contrat et sa zone géographique.
+
+---
+
+## ⚡ Système de Files d'Attente (BullMQ & Redis)
+
+Les opérations lourdes sont déportées de l'Event Loop Node.js vers des workers asynchrones :
+- **Notification Queue** : Distribution massive des SMS et Push lors de l'activation d'une coupure programmée.
+- **Retry Strategy** : Reprise exponentielle avec backoff en cas d'échec de distribution.
+- **Dead Letter Queue (DLQ)** : Isolation des messages non délivrables pour analyse par les administrateurs.
