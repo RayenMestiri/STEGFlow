@@ -178,4 +178,5 @@ npm run test:api
 ## 📄 Licence & Crédits
 
 Projet développé pour la **Société Tunisienne de l'Électricité et du Gaz (STEG)**.  
-Détails d'architecture disponibles dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+- 📚 **Guide de fonctionnement complet (Backend & Frontend)** : [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md)
+- 📐 **Spécifications d'architecture & schémas Mermaid** : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)

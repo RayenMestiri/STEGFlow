@@ -127,7 +127,7 @@
       } @else {
         @switch (activeNav()) {
           @case ('situation') {
-            <section class="situation-hero">
+            <section class="situation-hero" [attr.data-state]="situationTone()">
               <div class="hero-grid"></div>
               <div class="hero-copy">
                 <span class="status-eyebrow"><i></i> INFORMATION RÉSEAU EN DIRECT</span>

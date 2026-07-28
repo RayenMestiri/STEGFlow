@@ -1,3 +1,5 @@
+@use '../../../../libs/shared-data-access/src/lib/theme/steg-premium' as premium;
+
 :host {
   --blue: #0876b6;
   --blue-700: #065f96;
@@ -1388,4 +1390,239 @@ a { color: inherit; text-decoration: none; }
   .emergency-note { grid-template-columns: 20px 1fr; }
   .emergency-note a { grid-column: 2; justify-self: start; }
   .toast { right: 10px; bottom: 80px; left: 10px; max-width: none; }
+}
+
+/* ==========================================================================
+   Surcouche premium — Portail citoyen
+   Même grammaire que le Centre opérationnel, ton plus chaleureux : le citoyen
+   doit lire son état électrique d'un coup d'œil, sans jargon ni surcharge.
+   ========================================================================== */
+
+/* --- Bandeau de situation ----------------------------------------------- */
+.situation-hero {
+  @include premium.tone(blue);
+
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--steg-radius-lg);
+  @include premium.accent-bar($always: true);
+
+  /* L'état électrique pilote la teinte de tout le bandeau. */
+  &[data-state='outage'] { @include premium.tone(red); }
+  &[data-state='scheduled'] { @include premium.tone(amber); }
+  &[data-state='normal'] { @include premium.tone(green); }
+}
+
+.status-eyebrow i {
+  @include premium.live-dot(7px);
+}
+
+.hero-status-card {
+  border-radius: var(--steg-radius-md);
+  border: 1px solid color-mix(in srgb, var(--tone, var(--steg-blue-500)) 22%, transparent);
+  background: var(--steg-surface);
+  box-shadow: var(--steg-shadow-sm);
+}
+
+.hero-progress {
+  @include premium.progress(6px);
+}
+
+/* --- Cartes de contenu -------------------------------------------------- */
+.surface-card {
+  @include premium.card(blue);
+}
+
+/* Ces cartes servent d'appui à la carte plein écran : pas de lévitation, la
+   lecture doit rester stable pendant que la carte s'anime. */
+.map-sidebar,
+.public-map-card,
+.map-detail-panel {
+  @include premium.panel(blue);
+}
+
+.tracking-card { @include premium.tone(blue); }
+.scheduled-operation-card { @include premium.tone(amber); }
+.outage-state-card { @include premium.tone(red); }
+.timeline-card { @include premium.tone(green); }
+.reports-card { @include premium.tone(violet); }
+.contribution-card {
+  @include premium.tone(teal);
+
+  &.confirmed { @include premium.tone(green); }
+}
+.safety-guide-card,
+.safety-mini-card,
+.emergency-hero { @include premium.tone(red); }
+
+.citizen-lower-grid,
+.situation-metrics,
+.map-kpis,
+.safety-guide-grid {
+  @include premium.enter(8, '> *');
+}
+
+/* --- Pastilles d'icônes ------------------------------------------------- */
+.section-icon,
+.metric-icon,
+.report-type-icon,
+.scheduled-operation-icon,
+.filter-icon {
+  @include premium.icon-wrap(neutral, $size: 36px);
+
+  &.blue { @include premium.tone(blue); }
+  &.red { @include premium.tone(red); }
+  &.amber { @include premium.tone(amber); }
+  &.green { @include premium.tone(green); }
+  &.violet { @include premium.tone(violet); }
+
+  &[data-tone='danger'] { @include premium.tone(red); }
+  &[data-tone='warning'] { @include premium.tone(amber); }
+  &[data-tone='info'] { @include premium.tone(blue); }
+  &[data-tone='success'] { @include premium.tone(green); }
+}
+
+/* --- Étiquettes d'état -------------------------------------------------- */
+em[data-tone],
+.scheduled-pill,
+.live-pill,
+.map-live-badge,
+.record-count {
+  @include premium.chip(neutral);
+
+  font-style: normal;
+}
+
+em[data-tone='danger'],
+.outage-state-card em { @include premium.tone(red); }
+em[data-tone='warning'],
+.scheduled-pill { @include premium.tone(amber); }
+em[data-tone='info'] { @include premium.tone(blue); }
+em[data-tone='success'] { @include premium.tone(green); }
+
+.live-pill,
+.map-live-badge {
+  @include premium.tone(red);
+
+  i,
+  .live-dot { @include premium.live-dot(6px); }
+}
+
+/* --- Chronologie d'intervention ----------------------------------------- */
+.timeline-step {
+  @include premium.tone(neutral);
+
+  position: relative;
+  transition: color var(--steg-duration) var(--steg-ease);
+
+  &[data-state='completed'] { @include premium.tone(green); }
+  &[data-state='current'] {
+    @include premium.tone(blue);
+
+    /* L'étape en cours est la seule information qui bouge : elle mérite
+       l'unique animation de la chronologie. */
+    b { animation: steg-pulse 2s var(--steg-ease) infinite; }
+  }
+
+  b {
+    background: var(--tone);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone) 16%, transparent);
+  }
+}
+
+/* --- Actions ------------------------------------------------------------ */
+.primary-action,
+.mobile-report-button,
+.emergency-call {
+  border: 0;
+  border-radius: var(--steg-radius-md);
+  color: #fff;
+  background: linear-gradient(135deg, var(--steg-red-500), var(--steg-red-700));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--steg-red-500) 32%, transparent);
+  transition:
+    transform var(--steg-duration) var(--steg-ease-spring),
+    filter var(--steg-duration) var(--steg-ease);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    filter: brightness(1.06);
+  }
+
+  &:disabled { opacity: 0.55; box-shadow: none; }
+}
+
+.secondary,
+.ghost-action,
+.link-button,
+.icon-button,
+.sync-button,
+.address-button {
+  border-radius: var(--steg-radius-sm);
+  transition:
+    background var(--steg-duration) var(--steg-ease),
+    border-color var(--steg-duration) var(--steg-ease);
+
+  &:hover:not(:disabled) {
+    background: var(--steg-blue-50);
+    border-color: var(--steg-blue-200);
+  }
+}
+
+/* --- Signalement -------------------------------------------------------- */
+.report-types {
+  @include premium.enter(8, '> *');
+}
+
+.report-list-row,
+.restoration-row,
+.notification-list > * {
+  transition: background var(--steg-duration) var(--steg-ease);
+
+  &:hover { background: var(--steg-surface-sunken); }
+}
+
+.report-progress {
+  @include premium.progress(5px);
+}
+
+/* --- Surfaces flottantes ------------------------------------------------ */
+.modal-backdrop {
+  background: color-mix(in srgb, var(--steg-blue-950) 46%, transparent);
+  backdrop-filter: blur(3px);
+  animation: steg-fade-in var(--steg-duration-slow) var(--steg-ease) both;
+}
+
+.report-modal,
+.guide-modal,
+.address-popover,
+.notification-popover {
+  border-radius: var(--steg-radius-lg);
+  border: 1px solid var(--steg-border);
+  box-shadow: var(--steg-shadow-lg);
+  animation: steg-pop var(--steg-duration-slow) var(--steg-ease-spring) both;
+}
+
+.toast {
+  border-radius: var(--steg-radius-md);
+  box-shadow: var(--steg-shadow-md);
+  animation: steg-pop var(--steg-duration-slow) var(--steg-ease-spring) both;
+}
+
+.page-alert,
+.operation-error {
+  @include premium.tone(red);
+
+  border-radius: var(--steg-radius-sm);
+  color: var(--tone-strong);
+  background: var(--tone-soft);
+  border: 1px solid color-mix(in srgb, var(--tone) 24%, transparent);
+}
+
+/* --- Navigation mobile --------------------------------------------------- */
+.mobile-navigation button.active {
+  color: var(--steg-blue-700);
+
+  &::after {
+    background: var(--steg-blue-500);
+  }
 }

@@ -1,9 +1,15 @@
 @use '../../../libs/shared-data-access/src/lib/theme/steg-tokens' as steg;
+@use '../../../libs/shared-data-access/src/lib/theme/steg-premium' as premium;
 
 :root {
   @include steg.steg-palette;
   color-scheme: light;
 }
+
+// Images-clés et utilitaires du kit premium : déclarés une seule fois, au
+// niveau global, pour rester visibles depuis les composants encapsulés.
+@include premium.keyframes;
+@include premium.utilities;
 
 html, body { margin: 0; min-height: 100%; }
 body {

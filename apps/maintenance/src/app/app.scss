@@ -1,3 +1,5 @@
+@use '../../../../libs/shared-data-access/src/lib/theme/steg-premium' as premium;
+
 :host {
   --ink: #0d2330;
   --muted: #5e717d;
@@ -1720,4 +1722,288 @@ main {
     padding-bottom: 5px;
   }
   .report-form { grid-template-columns: 1fr; }
+}
+
+/* ==========================================================================
+   Surcouche premium — STEGField
+   Contrainte propre au terrain : écran de téléphone, gants, plein soleil.
+   Contrastes plus francs, cibles tactiles généreuses, animations réduites au
+   strict nécessaire pour ne pas gêner une lecture rapide en intervention.
+   ========================================================================== */
+
+/* --- Mission en cours --------------------------------------------------- */
+.mission-bar {
+  @include premium.tone(blue);
+
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--steg-radius-lg);
+  @include premium.accent-bar($always: true);
+}
+
+.progress-card,
+.report-main-card,
+.report-side,
+.proof-card,
+.client-card,
+.incident-card,
+.map-card,
+.profile-card,
+.history-card,
+.privacy-card,
+.resource-section,
+.mission-journal {
+  @include premium.panel(blue);
+}
+
+.incident-card { @include premium.tone(red); }
+.client-card { @include premium.tone(teal); }
+.proof-card { @include premium.tone(violet); }
+.safety-card { @include premium.tone(amber); }
+.device-card { @include premium.tone(neutral); }
+.privacy-card { @include premium.tone(green); }
+
+.workspace-grid,
+.ready-grid,
+.profile-grid,
+.mission-stats,
+.history-kpis,
+.resource-grid {
+  @include premium.enter(8, '> *');
+}
+
+/* --- Étapes de l'intervention ------------------------------------------- */
+.mission-step {
+  @include premium.tone(neutral);
+
+  transition:
+    color var(--steg-duration) var(--steg-ease),
+    background var(--steg-duration) var(--steg-ease);
+
+  i {
+    color: var(--tone-strong);
+    background: var(--tone-soft);
+    border: 1px solid color-mix(in srgb, var(--tone) 26%, transparent);
+  }
+
+  &.done {
+    @include premium.tone(green);
+
+    i {
+      color: #fff;
+      background: var(--tone);
+      border-color: transparent;
+    }
+  }
+
+  /* L'étape courante est le seul repère animé : elle doit rester repérable
+     d'un coup d'œil, casque sur la tête et téléphone à bout de bras. */
+  &.active {
+    @include premium.tone(blue);
+
+    i {
+      color: #fff;
+      background: var(--tone);
+      border-color: transparent;
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone) 20%, transparent);
+      animation: steg-pulse 2.2s var(--steg-ease) infinite;
+    }
+  }
+}
+
+.progress-track {
+  @include premium.progress(7px);
+}
+
+/* --- Étiquettes et pastilles -------------------------------------------- */
+.availability-pill,
+.mission-bar .status,
+.resource-chip,
+.device-state,
+.team-status {
+  @include premium.chip(neutral);
+
+  font-style: normal;
+}
+
+.availability-pill {
+  @include premium.tone(green);
+
+  i { @include premium.live-dot(7px); }
+}
+
+.resource-chip {
+  @include premium.tone(blue);
+
+  cursor: pointer;
+  transition:
+    background var(--steg-duration) var(--steg-ease),
+    transform var(--steg-duration) var(--steg-ease-spring);
+
+  &:hover { transform: translateY(-1px); }
+  &.active,
+  &[aria-pressed='true'] {
+    color: #fff;
+    background: var(--tone);
+    border-color: transparent;
+  }
+}
+
+.gps-icon {
+  @include premium.icon-wrap-solid(green, $size: 38px);
+
+  /* Signal GPS perdu : bascule en ambre, sans clignotement — l'agent doit
+     pouvoir continuer sa saisie hors ligne sans être distrait. */
+  &.off {
+    @include premium.icon-wrap(amber, $size: 38px);
+  }
+}
+
+.section-icon,
+.metric-icon,
+.mission-icon,
+.gps-icon,
+.sos-icon {
+  &.blue { @include premium.tone(blue); }
+  &.red { @include premium.tone(red); }
+  &.amber { @include premium.tone(amber); }
+  &.green { @include premium.tone(green); }
+  &.violet { @include premium.tone(violet); }
+}
+
+.section-kicker,
+.eyebrow {
+  color: var(--steg-text-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* --- Actions terrain ---------------------------------------------------- */
+.navigate-button,
+.modal-primary,
+.details-button {
+  border: 0;
+  border-radius: var(--steg-radius-md);
+  color: #fff;
+  background: linear-gradient(135deg, var(--steg-blue-500), var(--steg-blue-700));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--steg-blue-500) 30%, transparent);
+  transition:
+    transform var(--steg-duration) var(--steg-ease-spring),
+    filter var(--steg-duration) var(--steg-ease);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    filter: brightness(1.06);
+  }
+
+  &:disabled { opacity: 0.55; box-shadow: none; }
+}
+
+/* Le bouton d'urgence ne partage aucune propriété avec les autres actions :
+   il doit être impossible de le confondre ou de l'activer par réflexe. */
+.sos-button {
+  border: 0;
+  border-radius: var(--steg-radius-pill);
+  color: #fff;
+  background: linear-gradient(135deg, var(--steg-red-500), var(--steg-red-700));
+  box-shadow:
+    0 12px 30px color-mix(in srgb, var(--steg-red-500) 40%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--steg-red-500) 12%, transparent);
+  transition: transform var(--steg-duration) var(--steg-ease-spring);
+
+  &:hover:not(:disabled) { transform: scale(1.03); }
+  &:active:not(:disabled) { transform: scale(0.98); }
+}
+
+.secondary,
+.icon-button,
+.header-refresh,
+.cancel-sos,
+.close {
+  border-radius: var(--steg-radius-sm);
+  transition:
+    background var(--steg-duration) var(--steg-ease),
+    border-color var(--steg-duration) var(--steg-ease);
+
+  &:hover:not(:disabled) {
+    background: var(--steg-blue-50);
+    border-color: var(--steg-blue-200);
+  }
+}
+
+/* --- Preuves photo ------------------------------------------------------ */
+.photo-drop {
+  border: 1.5px dashed var(--steg-border-strong);
+  border-radius: var(--steg-radius-md);
+  transition:
+    border-color var(--steg-duration) var(--steg-ease),
+    background var(--steg-duration) var(--steg-ease);
+
+  &:hover {
+    border-color: var(--steg-blue-400);
+    background: var(--steg-blue-50);
+  }
+}
+
+.photo-grid > * {
+  border-radius: var(--steg-radius-sm);
+  overflow: hidden;
+  box-shadow: var(--steg-shadow-xs);
+}
+
+/* --- Historique --------------------------------------------------------- */
+.history-list > *,
+.history-row {
+  transition: background var(--steg-duration) var(--steg-ease);
+
+  &:hover { background: var(--steg-surface-sunken); }
+}
+
+.history-table-header {
+  color: var(--steg-text-muted);
+  background: var(--steg-surface-sunken);
+  border-bottom: 1px solid var(--steg-border);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* --- Surfaces flottantes ------------------------------------------------ */
+.modal-backdrop {
+  background: color-mix(in srgb, var(--steg-blue-950) 50%, transparent);
+  backdrop-filter: blur(3px);
+  animation: steg-fade-in var(--steg-duration-slow) var(--steg-ease) both;
+}
+
+.sos-modal,
+.history-modal,
+.header-popover,
+.profile-popover {
+  border-radius: var(--steg-radius-lg);
+  border: 1px solid var(--steg-border);
+  box-shadow: var(--steg-shadow-lg);
+  animation: steg-pop var(--steg-duration-slow) var(--steg-ease-spring) both;
+}
+
+.toast {
+  border-radius: var(--steg-radius-md);
+  box-shadow: var(--steg-shadow-md);
+  animation: steg-pop var(--steg-duration-slow) var(--steg-ease-spring) both;
+}
+
+.global-error,
+.emergency-note {
+  @include premium.tone(red);
+
+  border-radius: var(--steg-radius-sm);
+  color: var(--tone-strong);
+  background: var(--tone-soft);
+  border: 1px solid color-mix(in srgb, var(--tone) 24%, transparent);
+}
+
+/* --- Navigation --------------------------------------------------------- */
+.desktop-nav button.active,
+.desktop-nav a.active {
+  color: var(--steg-blue-700);
+  background: var(--steg-blue-50);
+  border-radius: var(--steg-radius-sm);
 }

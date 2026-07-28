@@ -538,6 +538,18 @@ export class App implements OnInit, OnDestroy {
     );
   }
 
+  /**
+   * Teinte du bandeau d'accueil : une intervention ou une coupure confirmée
+   * passe l'écran en rouge, une opération programmée en ambre, le reste en vert.
+   */
+  protected situationTone(): 'outage' | 'scheduled' | 'normal' {
+    const dashboard = this.dashboard();
+    if (dashboard?.mission || dashboard?.situation?.state === 'outage_confirmed') {
+      return 'outage';
+    }
+    return dashboard?.situation?.state === 'scheduled' ? 'scheduled' : 'normal';
+  }
+
   protected statusTone(status: string): string {
     if (['critical', 'active', 'failed', 'rejected'].includes(status))
       return 'danger';

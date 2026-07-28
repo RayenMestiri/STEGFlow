@@ -1,3 +1,5 @@
+@use '../../../../libs/shared-data-access/src/lib/theme/steg-premium' as premium;
+
 :host {
   --ink: #102b3b;
   --muted: #687b88;
@@ -571,4 +573,267 @@ main { min-height: 100vh; margin-left: 250px; }
   .stepper.five span { min-width: 52px; }
   .stepper.five span em { display: none; }
   .composer-channels { grid-template-columns: 1fr; }
+}
+
+/* ==========================================================================
+   Surcouche premium — Centre opérationnel
+   Reprend le vocabulaire partagé (teinte → bordure, ombre, accent, pastille)
+   sans toucher au gabarit : seules les propriétés visuelles sont redéfinies.
+   ========================================================================== */
+
+/* --- Indicateurs clés --------------------------------------------------- */
+.kpi-grid {
+  @include premium.enter(6, '> .kpi-card');
+}
+
+.kpi-card {
+  @include premium.card(blue, $shimmer: true);
+
+  &.emerald { @include premium.tone(green); }
+  &.amber { @include premium.tone(amber); }
+  &.red { @include premium.tone(red); }
+  &.blue { @include premium.tone(blue); }
+  &.violet { @include premium.tone(violet); }
+
+  .kpi-icon {
+    @include premium.icon-wrap($size: 40px);
+  }
+
+  .kpi-value {
+    color: var(--steg-text);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+
+    span { color: var(--tone-strong); }
+  }
+}
+
+/* --- Panneaux de travail ------------------------------------------------ */
+.panel,
+.workspace-card,
+.settings-card,
+.notification-panel {
+  @include premium.panel;
+}
+
+/* La carte opérationnelle porte l'accent en permanence : c'est la pièce
+   maîtresse de l'écran, elle doit se distinguer des panneaux annexes. */
+.map-panel {
+  @include premium.tone(blue);
+  @include premium.accent-bar($always: true);
+}
+
+.panel-header {
+  border-bottom: 1px solid var(--steg-border);
+}
+
+.section-icon {
+  @include premium.icon-wrap(neutral, $size: 34px);
+
+  &.danger { @include premium.tone(red); }
+  &.blue { @include premium.tone(blue); }
+  &.amber { @include premium.tone(amber); }
+  &.violet { @include premium.tone(violet); }
+  &.emerald { @include premium.tone(green); }
+}
+
+/* --- Étiquettes d'état -------------------------------------------------- */
+.status-pill {
+  @include premium.chip(neutral);
+
+  font-style: normal;
+
+  &[data-tone='danger'] { @include premium.tone(red); }
+  &[data-tone='warning'] { @include premium.tone(amber); }
+  &[data-tone='info'] { @include premium.tone(blue); }
+  &[data-tone='success'] { @include premium.tone(green); }
+  &[data-tone='neutral'] { @include premium.tone(neutral); }
+
+  i {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--tone);
+  }
+}
+
+.live-pill {
+  @include premium.chip(red);
+
+  i { @include premium.live-dot(6px); }
+}
+
+/* --- Signalements ------------------------------------------------------- */
+.incident-list,
+.incident-board {
+  @include premium.enter(8, '> *');
+}
+
+.incident-card {
+  @include premium.card(amber, $shimmer: true);
+
+  text-align: left;
+
+  &[data-severity='critical'] { @include premium.tone(red); }
+  &[data-severity='high'] { @include premium.tone(amber); }
+  &[data-severity='medium'] { @include premium.tone(blue); }
+  &[data-severity='low'] { @include premium.tone(neutral); }
+}
+
+.incident-symbol {
+  @include premium.icon-wrap($size: 36px);
+
+  &.fire {
+    @include premium.icon-wrap-solid(red, $size: 36px);
+  }
+}
+
+.incident-row {
+  transition: background var(--steg-duration) var(--steg-ease);
+
+  &:hover { background: var(--steg-surface-sunken); }
+}
+
+/* --- Équipes terrain ---------------------------------------------------- */
+.team-board {
+  @include premium.enter(8, '> *');
+}
+
+.field-team-card {
+  @include premium.card(blue, $shimmer: true);
+
+  text-align: left;
+}
+
+.team-avatar,
+.large-team-avatar {
+  border: 2px solid var(--steg-surface);
+  box-shadow: var(--steg-shadow-xs);
+}
+
+/* --- Tableaux ----------------------------------------------------------- */
+.data-table {
+  .table-head {
+    color: var(--steg-text-muted);
+    background: var(--steg-surface-sunken);
+    border-bottom: 1px solid var(--steg-border);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .table-row {
+    border-bottom: 1px solid var(--steg-border);
+    transition: background var(--steg-duration) var(--steg-ease);
+
+    &:hover { background: var(--steg-blue-50); }
+    &:last-child { border-bottom: 0; }
+  }
+}
+
+/* --- Actions ------------------------------------------------------------ */
+.primary-button {
+  @include premium.tone(blue);
+
+  border: 0;
+  border-radius: var(--steg-radius-sm);
+  color: var(--steg-on-primary);
+  background: linear-gradient(135deg, var(--steg-blue-500), var(--steg-blue-700));
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--steg-blue-500) 30%, transparent);
+  transition:
+    transform var(--steg-duration) var(--steg-ease-spring),
+    filter var(--steg-duration) var(--steg-ease),
+    box-shadow var(--steg-duration) var(--steg-ease);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+  }
+
+  &:disabled { opacity: 0.55; box-shadow: none; }
+}
+
+.secondary-button,
+.text-button,
+.icon-button,
+.filter-button {
+  border-radius: var(--steg-radius-sm);
+  transition:
+    background var(--steg-duration) var(--steg-ease),
+    border-color var(--steg-duration) var(--steg-ease);
+}
+
+.secondary-button:hover:not(:disabled),
+.icon-button:hover:not(:disabled),
+.filter-button:hover:not(:disabled) {
+  background: var(--steg-blue-50);
+  border-color: var(--steg-blue-200);
+}
+
+/* --- Navigation latérale ------------------------------------------------ */
+.nav-item {
+  border-radius: var(--steg-radius-sm);
+  transition:
+    background var(--steg-duration) var(--steg-ease),
+    color var(--steg-duration) var(--steg-ease);
+
+  &.active {
+    color: var(--steg-blue-700);
+    background: var(--steg-blue-50);
+    box-shadow: inset 3px 0 0 var(--steg-blue-500);
+  }
+}
+
+/* --- Modales et tiroirs ------------------------------------------------- */
+.modal-backdrop {
+  background: color-mix(in srgb, var(--steg-blue-950) 46%, transparent);
+  backdrop-filter: blur(3px);
+  animation: steg-fade-in var(--steg-duration-slow) var(--steg-ease) both;
+}
+
+.modal-card,
+.detail-drawer {
+  border-radius: var(--steg-radius-lg);
+  border: 1px solid var(--steg-border);
+  box-shadow: var(--steg-shadow-lg);
+  animation: steg-pop var(--steg-duration-slow) var(--steg-ease-spring) both;
+}
+
+.modal-icon {
+  @include premium.icon-wrap(blue, $size: 42px);
+}
+
+/* --- Bandeaux et retours ------------------------------------------------ */
+.toast {
+  border-radius: var(--steg-radius-md);
+  box-shadow: var(--steg-shadow-md);
+  animation: steg-pop var(--steg-duration-slow) var(--steg-ease-spring) both;
+}
+
+.page-alert,
+.operation-error {
+  @include premium.tone(red);
+
+  border-radius: var(--steg-radius-sm);
+  color: var(--tone-strong);
+  background: var(--tone-soft);
+  border: 1px solid color-mix(in srgb, var(--tone) 24%, transparent);
+}
+
+.audit-banner,
+.safety-banner {
+  @include premium.tone(amber);
+
+  border-radius: var(--steg-radius-sm);
+  background: var(--tone-soft);
+  border: 1px solid color-mix(in srgb, var(--tone) 24%, transparent);
+}
+
+/* --- Progression -------------------------------------------------------- */
+.progress-track {
+  @include premium.progress(6px);
+}
+
+.metric-strip {
+  @include premium.enter(4, '> *');
 }
