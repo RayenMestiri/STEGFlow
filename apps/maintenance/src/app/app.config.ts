@@ -129,7 +129,13 @@ export const appConfig: ApplicationConfig = {
     provideStegApi(resolveStegApiUrl()),
     importProvidersFrom(LucideAngularModule.pick(maintenanceIcons)),
     provideServiceWorker('ngsw-worker.js', {
-      enabled: !isDevMode(),
+      enabled:
+        !isDevMode() &&
+        typeof window !== 'undefined' &&
+        window.isSecureContext &&
+        (window.location.protocol === 'https:' ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1'),
       registrationStrategy: 'registerImmediately',
     }),
   ],

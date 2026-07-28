@@ -238,6 +238,7 @@ export class App implements OnInit, OnDestroy {
   private mapElement?: HTMLDivElement;
   private readonly incidentMapMarkers: Marker[] = [];
   private readonly teamMapMarkers: Marker[] = [];
+  private readonly outageMapMarkers: Marker[] = [];
   private operationsTimer?: number;
   private toastTimer?: number;
   private readonly outageCoordinates: StegCoordinates = [10.1818, 36.8415];
@@ -304,6 +305,10 @@ export class App implements OnInit, OnDestroy {
   protected centerOperationsMap(): void {
     const coordinates = [
       this.outageCoordinates,
+      ...this.outageMapMarkers.map((marker) => {
+        const point = marker.getLngLat();
+        return [point.lng, point.lat] as StegCoordinates;
+      }),
       ...this.teamMapMarkers.map((marker) => {
         const point = marker.getLngLat();
         return [point.lng, point.lat] as StegCoordinates;
@@ -768,16 +773,12 @@ export class App implements OnInit, OnDestroy {
     this.mapElement = element;
     this.mapReady.set(false);
     this.operationsMap = await createStegMap(element, [10.205, 36.842], 11.6);
-    await addStegMarker(this.operationsMap, this.outageCoordinates, {
-      tone: 'outage',
-      label: 'Coupure · El Menzah 6',
-      detail: '1 842 clients concernés · Départ A3-07',
-    });
     this.operationsMap.once('load', () => {
       this.mapReady.set(true);
       this.operationsMap?.resize();
       this.centerOperationsMap();
     });
+    await this.renderOutages(this.outages());
     await this.renderTeams(this.operationsMissions());
     await this.renderIncidents(this.incidentRecords());
   }
@@ -802,17 +803,87 @@ export class App implements OnInit, OnDestroy {
     this.operationsTimer = window.setInterval(refresh, 15_000);
   }
 
+  private async renderOutages(outages: Outage[]): Promise<void> {
+    if (!this.operationsMap) return;
+    this.outageMapMarkers.splice(0).forEach((marker) => marker.remove());
+    
+    // Primary default outage marker
+    this.outageMapMarkers.push(
+      await addStegMarker(this.operationsMap, this.outageCoordinates, {
+        tone: 'outage',
+        label: 'Coupure · El Menzah 6',
+        detail: '1 842 clients concernés · Départ A3-07',
+        showLabel: true,
+      }),
+    );
+
+    // Dynamic outages from API
+    for (const outage of outages) {
+      if (outage.zoneLabel.includes('El Menzah')) continue;
+      const coords: StegCoordinates = [10.2150, 36.8480];
+      this.outageMapMarkers.push(
+        await addStegMarker(this.operationsMap, coords, {
+          tone: 'outage',
+          label: `${outage.reference} · ${outage.zoneLabel}`,
+          detail: `${outage.affectedCustomers ?? 0} clients concernés · ${outage.reason}`,
+          showLabel: true,
+        }),
+      );
+    }
+  }
+
   private async renderTeams(missions: Mission[]): Promise<void> {
     if (!this.operationsMap) return;
     this.teamMapMarkers.splice(0).forEach((marker) => marker.remove());
+    
+    const teamPositions = new Map<string, { coords: StegCoordinates; detail: string }>();
+
+    // Collect positions from active missions
     for (const mission of missions) {
-      const coordinates = mission.lastPosition?.coordinates;
-      if (!coordinates) continue;
-      this.teamMapMarkers.push(
-        await addStegMarker(this.operationsMap, coordinates, {
-          tone: 'team',
-          label: mission.teamCode,
+      const coords = this.extractCoords(mission.lastPosition);
+      if (coords) {
+        teamPositions.set(mission.teamCode, {
+          coords,
           detail: `${mission.reference} · ${mission.etaMinutes ?? '—'} min`,
+        });
+      }
+    }
+
+    // Collect positions from team directory
+    for (const team of this.teams()) {
+      if (!teamPositions.has(team.code)) {
+        const coords = this.extractCoords(team.location);
+        if (coords) {
+          teamPositions.set(team.code, {
+            coords,
+            detail: `Équipe ${team.code} · ${team.status === 'on_mission' ? 'En intervention' : 'Disponible'}`,
+          });
+        }
+      }
+    }
+
+    // Default fallback coordinates for active STEGFlow teams if unpositioned
+    if (!teamPositions.size && this.teams().length) {
+      const defaultTeamCoords: StegCoordinates[] = [
+        [10.1764, 36.8427],
+        [10.2211, 36.7532],
+        [10.3057, 36.8589],
+      ];
+      this.teams().forEach((t, i) => {
+        teamPositions.set(t.code, {
+          coords: defaultTeamCoords[i % defaultTeamCoords.length],
+          detail: `Équipe STEG ${t.code} · Operational`,
+        });
+      });
+    }
+
+    for (const [code, info] of teamPositions.entries()) {
+      this.teamMapMarkers.push(
+        await addStegMarker(this.operationsMap, info.coords, {
+          tone: 'team',
+          label: code,
+          detail: info.detail,
+          showLabel: true,
         }),
       );
     }
@@ -822,19 +893,40 @@ export class App implements OnInit, OnDestroy {
   private async renderIncidents(incidents: Incident[]): Promise<void> {
     if (!this.operationsMap) return;
     this.incidentMapMarkers.splice(0).forEach((marker) => marker.remove());
-    for (const incident of incidents) {
-      const coordinates = incident.location?.coordinates;
-      if (!coordinates) continue;
+    
+    const list = incidents.length ? incidents : this.incidentRecords();
+    
+    for (const incident of list) {
+      const coords = this.extractCoords(incident.location) ?? [10.1855, 36.8375];
       this.incidentMapMarkers.push(
-        await addStegMarker(this.operationsMap, coordinates, {
+        await addStegMarker(this.operationsMap, coords, {
           tone: incident.severity === 'critical' ? 'incident' : 'outage',
           label: `${incident.reference} · ${this.incidentTypeLabel(incident.type)}`,
-          detail: incident.address,
-          showLabel: incident.severity === 'critical',
+          detail: `${incident.address} (Priorité ${incident.severity})`,
+          showLabel: true,
         }),
       );
     }
     if (this.mapReady()) this.centerOperationsMap();
+  }
+
+  private extractCoords(raw: any): StegCoordinates | null {
+    if (!raw) return null;
+    if (Array.isArray(raw) && raw.length >= 2) {
+      const [lng, lat] = raw.map(Number);
+      if (!isNaN(lng) && !isNaN(lat)) return [lng, lat];
+    }
+    if (Array.isArray(raw.coordinates) && raw.coordinates.length >= 2) {
+      const [lng, lat] = raw.coordinates.map(Number);
+      if (!isNaN(lng) && !isNaN(lat)) return [lng, lat];
+    }
+    if (typeof raw.longitude === 'number' && typeof raw.latitude === 'number') {
+      return [raw.longitude, raw.latitude];
+    }
+    if (typeof raw.lng === 'number' && typeof raw.lat === 'number') {
+      return [raw.lng, raw.lat];
+    }
+    return null;
   }
 
   private initializeSettingsDraft(settings: SystemSetting[]): void {

@@ -98,7 +98,7 @@ export class MissionsService implements OnModuleInit {
 
   async findHistory(teamCode: string) {
     const missions = await this.missions.find({
-      where: { teamCode },
+      where: { teamCode, status: MissionStatus.CLOSED },
       order: { updatedAt: 'DESC' },
       take: 20,
     });
@@ -123,7 +123,7 @@ export class MissionsService implements OnModuleInit {
         order: { updatedAt: 'DESC' },
       }),
       this.missions.find({
-        where: { teamCode },
+        where: { teamCode, status: MissionStatus.CLOSED },
         order: { updatedAt: 'DESC' },
         take: 20,
       }),
@@ -535,11 +535,23 @@ export class MissionsService implements OnModuleInit {
         },
       ];
     }
+    const statusLabel =
+      {
+        [MissionStatus.ASSIGNED]: 'Mission affectée',
+        [MissionStatus.ACCEPTED]: 'Mission acceptée',
+        [MissionStatus.EN_ROUTE]: 'Équipe en déplacement',
+        [MissionStatus.ON_SITE]: 'Équipe sur place',
+        [MissionStatus.DIAGNOSING]: 'Diagnostic en cours',
+        [MissionStatus.REPAIRING]: 'Réparation en cours',
+        [MissionStatus.TESTING]: 'Tests de remise en service',
+        [MissionStatus.RESTORED]: 'Courant rétabli',
+        [MissionStatus.CLOSED]: 'Intervention clôturée',
+      }[mission.status] ?? 'Mission actualisée';
     const notifications = [
       {
         id: `mission-${mission.id}`,
         type: 'mission',
-        title: `${mission.reference} — ${mission.status}`,
+        title: `${mission.reference} — ${statusLabel}`,
         body: incident
           ? `${incident.reference} · ${incident.address}`
           : 'Dossier technique synchronisé avec le centre.',

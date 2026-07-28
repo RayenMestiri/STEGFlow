@@ -230,6 +230,7 @@ export class App implements OnInit, OnDestroy {
   @ViewChild('fieldMapCanvas')
   set fieldMapCanvas(container: ElementRef<HTMLDivElement> | undefined) {
     if (!container) return;
+    this.mapElement = container.nativeElement;
     void this.initializeFieldMap(container.nativeElement);
   }
 
@@ -728,7 +729,11 @@ export class App implements OnInit, OnDestroy {
           this.mapElement = undefined;
           this.mapReady.set(false);
         } else {
-          window.setTimeout(() => void this.renderMissionOnMap(), 0);
+          window.setTimeout(() => {
+            if (this.mapElement) {
+              void this.initializeFieldMap(this.mapElement);
+            }
+          }, 0);
         }
         if (showRefresh) {
           this.showToast(
@@ -822,33 +827,24 @@ export class App implements OnInit, OnDestroy {
   }
 
   private async initializeFieldMap(element: HTMLDivElement): Promise<void> {
+    this.mapElement = element;
     const mission = this.mission();
     if (!mission || !supportsStegMap()) return;
-    if (this.fieldMap && this.mapElement === element) {
+    if (this.fieldMap) {
+      this.fieldMap.resize();
       await this.renderMissionOnMap();
       return;
     }
-    this.fieldMap?.remove();
-    this.mapElement = element;
     const destination =
-      mission.incident.location?.coordinates ?? [10.1855, 36.8375];
+      mission.incident?.location?.coordinates ?? [10.1855, 36.8375];
     const team = mission.lastPosition?.coordinates ?? [10.1764, 36.8427];
     this.fieldMap = await createStegMap(element, team, 13.1);
-    this.destinationMapMarker = await addStegMarker(
-      this.fieldMap,
-      destination,
-      {
-        tone: 'incident',
-        label: mission.incident.reference,
-        detail: `${mission.incident.address} · Priorité ${this.severityLabel(mission.incident.severity).toLowerCase()}`,
-      },
-    );
-    await this.renderMissionOnMap();
     this.fieldMap.once('load', () => {
       this.mapReady.set(true);
       this.fieldMap?.resize();
-      this.centerFieldMap();
+      void this.renderMissionOnMap();
     });
+    await this.renderMissionOnMap();
   }
 
   private async renderMissionOnMap(): Promise<void> {
@@ -857,17 +853,34 @@ export class App implements OnInit, OnDestroy {
     const team =
       mission.lastPosition?.coordinates ?? [10.1764, 36.8427];
     const destination =
-      mission.incident.location?.coordinates ?? [10.1855, 36.8375];
-    this.destinationMapMarker?.setLngLat(destination);
+      mission.incident?.location?.coordinates ?? [10.1855, 36.8375];
+
+    if (this.destinationMapMarker) {
+      this.destinationMapMarker.setLngLat(destination);
+    } else {
+      this.destinationMapMarker = await addStegMarker(
+        this.fieldMap,
+        destination,
+        {
+          tone: 'incident',
+          label: mission.incident.reference,
+          detail: `${mission.incident.address} · Priorité ${this.severityLabel(mission.incident.severity).toLowerCase()}`,
+          showLabel: true,
+        },
+      );
+    }
+
     if (this.teamMapMarker) {
       this.teamMapMarker.setLngLat(team);
     } else {
       this.teamMapMarker = await addStegMarker(this.fieldMap, team, {
         tone: 'team',
-        label: this.team()?.vehicle ?? 'Votre véhicule',
-        detail: 'Position exacte réservée au centre des opérations',
+        label: this.team()?.vehicle ?? 'Votre véhicule STEG',
+        detail: 'Position exacte de la mission',
+        showLabel: true,
       });
     }
+
     drawStegRoute(this.fieldMap, 'maintenance-route', team, destination);
     if (this.mapReady()) fitStegMap(this.fieldMap, [team, destination], 62);
   }
