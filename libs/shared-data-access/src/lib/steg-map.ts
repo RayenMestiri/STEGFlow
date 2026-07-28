@@ -14,9 +14,14 @@ const MAP_STYLE: StyleSpecification = {
   sources: {
     openStreetMap: {
       type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tiles: [
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      ],
       tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
+      attribution: '© OpenStreetMap contributors, © CARTO',
     },
   },
   layers: [
@@ -25,9 +30,8 @@ const MAP_STYLE: StyleSpecification = {
       type: 'raster',
       source: 'openStreetMap',
       paint: {
-        'raster-saturation': -0.48,
-        'raster-contrast': 0.08,
-        'raster-brightness-max': 0.97,
+        'raster-saturation': -0.15,
+        'raster-contrast': 0.05,
       },
     },
   ],
@@ -65,15 +69,27 @@ export async function createStegMap(
     style: MAP_STYLE,
     center: center as LngLatLike,
     zoom,
-    minZoom: 8,
-    maxZoom: 18,
+    minZoom: 6,
+    maxZoom: 19,
     attributionControl: {
       compact: true,
-      customAttribution: 'Données cartographiques',
+      customAttribution: 'STEGFlow Cartographie',
     },
   });
   map.dragRotate.disable();
   map.touchZoomRotate.disableRotation();
+
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(() => {
+      try {
+        map.resize();
+      } catch {
+        // map container destroyed
+      }
+    });
+    observer.observe(container);
+  }
+
   return map;
 }
 
@@ -201,15 +217,30 @@ export function fitStegMap(
   coordinates: StegCoordinates[],
   padding = 72,
 ): void {
-  if (!coordinates.length) return;
-  const longitudes = coordinates.map(([longitude]) => longitude);
-  const latitudes = coordinates.map(([, latitude]) => latitude);
+  if (!coordinates || !coordinates.length) return;
+  const validCoords = coordinates.filter(
+    (c) => Array.isArray(c) && c.length >= 2 && !isNaN(c[0]) && !isNaN(c[1]),
+  );
+  if (!validCoords.length) return;
+
+  const longitudes = validCoords.map(([longitude]) => longitude);
+  const latitudes = validCoords.map(([, latitude]) => latitude);
+  const minLng = Math.min(...longitudes);
+  const maxLng = Math.max(...longitudes);
+  const minLat = Math.min(...latitudes);
+  const maxLat = Math.max(...latitudes);
+
+  if (Math.abs(maxLng - minLng) < 0.0001 && Math.abs(maxLat - minLat) < 0.0001) {
+    map.flyTo({ center: [minLng, minLat], zoom: 14.2, duration: 500 });
+    return;
+  }
+
   map.fitBounds(
     [
-      [Math.min(...longitudes), Math.min(...latitudes)],
-      [Math.max(...longitudes), Math.max(...latitudes)],
+      [minLng, minLat],
+      [maxLng, maxLat],
     ],
-    { padding, maxZoom: 15, duration: 650 },
+    { padding, maxZoom: 15.5, duration: 600 },
   );
 }
 

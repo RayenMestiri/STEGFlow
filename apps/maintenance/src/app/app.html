@@ -904,37 +904,6 @@
       }
     </main>
 
-    <nav class="mobile-nav" aria-label="Navigation mobile">
-      <button
-        type="button"
-        [class.active]="activeView() === 'mission'"
-        (click)="selectView('mission')"
-      >
-        <lucide-icon name="navigation" [size]="20"></lucide-icon><span>Mission</span>
-      </button>
-      <button
-        type="button"
-        [class.active]="activeView() === 'report'"
-        (click)="selectView('report')"
-      >
-        <lucide-icon name="clipboard-pen" [size]="20"></lucide-icon><span>Rapport</span>
-      </button>
-      <button
-        type="button"
-        [class.active]="activeView() === 'history'"
-        (click)="selectView('history')"
-      >
-        <lucide-icon name="history" [size]="20"></lucide-icon><span>Historique</span>
-      </button>
-      <button
-        type="button"
-        [class.active]="activeView() === 'profile'"
-        (click)="selectView('profile')"
-      >
-        <lucide-icon name="circle-user-round" [size]="20"></lucide-icon><span>Équipe</span>
-      </button>
-    </nav>
-
     @if (sosOpen()) {
       <div class="modal-backdrop" (click)="sosOpen.set(false)">
         <section
