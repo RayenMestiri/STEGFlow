@@ -39,6 +39,12 @@ export class OutageEntity {
   @Column({ type: 'integer', default: 0 })
   affectedCustomers!: number;
 
+  @Column({ type: 'double precision', nullable: true })
+  longitude!: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  latitude!: number | null;
+
   @Column({
     type: 'geometry',
     spatialFeatureType: 'Polygon',

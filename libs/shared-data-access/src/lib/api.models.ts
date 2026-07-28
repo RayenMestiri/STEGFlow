@@ -8,6 +8,8 @@ export interface Outage {
   startsAt: string;
   durationMinutes: number;
   affectedCustomers: number;
+  longitude?: number | null;
+  latitude?: number | null;
   supervisorApprovalRequired?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -33,6 +35,7 @@ export interface Incident {
   photos: string[];
   communityConfirmations: number;
   contractNumber?: string | null;
+  reportedByUserId?: string | null;
   assignedTeamCode?: string | null;
   activity?: Array<{ at: string; label: string; actor: string }>;
   createdAt: string;
@@ -366,7 +369,7 @@ export interface CitizenDashboard {
     cause: string;
     affectedCustomers: number;
     communityConfirmations: number;
-    estimatedRestorationAt: string;
+    estimatedRestorationAt: string | null;
     lastUpdatedAt: string;
     powerRestoredConfirmedAt: string | null;
   };

@@ -29,6 +29,7 @@ export class IncidentsService implements OnModuleInit {
         photos: [],
         communityConfirmations: 7,
         contractNumber: null,
+        reportedByUserId: null,
         assignedTeamCode: null,
         activity: [
           {
@@ -45,7 +46,11 @@ export class IncidentsService implements OnModuleInit {
     return this.incidents.find({ order: { createdAt: 'DESC' } });
   }
 
-  async create(dto: CreateIncidentDto) {
+  async create(
+    dto: CreateIncidentDto & {
+      reportedByUserId?: string;
+    },
+  ) {
     const sequence = await this.incidents.count();
     const dangerous = dto.type === 'fire' || dto.type === 'wire';
     return this.incidents.save(
@@ -60,6 +65,7 @@ export class IncidentsService implements OnModuleInit {
         },
         photos: dto.photos ?? [],
         contractNumber: dto.contractNumber ?? null,
+        reportedByUserId: dto.reportedByUserId ?? null,
         assignedTeamCode: null,
         activity: [
           {

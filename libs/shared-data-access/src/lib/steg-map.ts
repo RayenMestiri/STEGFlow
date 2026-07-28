@@ -14,14 +14,9 @@ const MAP_STYLE: StyleSpecification = {
   sources: {
     openStreetMap: {
       type: 'raster',
-      tiles: [
-        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      ],
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
       tileSize: 256,
-      attribution: '© OpenStreetMap contributors, © CARTO',
+      attribution: '© OpenStreetMap contributors',
     },
   },
   layers: [
@@ -52,10 +47,41 @@ const MARKER_SYMBOLS: Record<StegMarkerTone, string> = {
 };
 
 export function supportsStegMap(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.WebGL2RenderingContext !== 'undefined'
-  );
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return false;
+  }
+  try {
+    const canvas = document.createElement('canvas');
+    return Boolean(canvas.getContext('webgl2'));
+  } catch {
+    return false;
+  }
+}
+
+export function whenStegMapReady(
+  map: MapLibreMap,
+  callback: () => void,
+): void {
+  let completed = false;
+  let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+  const finish = () => {
+    if (completed) return;
+    completed = true;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    map.off('styledata', handleStyleData);
+    callback();
+  };
+  const handleStyleData = () => {
+    if (map.isStyleLoaded()) finish();
+  };
+
+  if (map.loaded() || map.isStyleLoaded()) {
+    queueMicrotask(finish);
+    return;
+  }
+  map.once('load', finish);
+  map.on('styledata', handleStyleData);
+  fallbackTimer = setTimeout(finish, 3_000);
 }
 
 export async function createStegMap(
@@ -208,8 +234,15 @@ export function drawStegRoute(
     });
   };
 
-  if (map.loaded()) render();
+  if (map.loaded() || map.isStyleLoaded()) render();
   else map.once('load', render);
+}
+
+export function removeStegRoute(map: MapLibreMap, id: string): void {
+  const sourceId = `${id}-source`;
+  const layerId = `${id}-line`;
+  if (map.getLayer(layerId)) map.removeLayer(layerId);
+  if (map.getSource(sourceId)) map.removeSource(sourceId);
 }
 
 export function fitStegMap(

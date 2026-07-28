@@ -26,7 +26,9 @@ import {
   createStegMap,
   drawStegRoute,
   fitStegMap,
+  removeStegRoute,
   supportsStegMap,
+  whenStegMapReady,
   type StegCoordinates,
 } from 'shared-data-access';
 
@@ -837,9 +839,9 @@ export class App implements OnInit, OnDestroy {
     }
     const destination =
       mission.incident?.location?.coordinates ?? [10.1855, 36.8375];
-    const team = mission.lastPosition?.coordinates ?? [10.1764, 36.8427];
-    this.fieldMap = await createStegMap(element, team, 13.1);
-    this.fieldMap.once('load', () => {
+    const team = mission.lastPosition?.coordinates;
+    this.fieldMap = await createStegMap(element, team ?? destination, 13.1);
+    whenStegMapReady(this.fieldMap, () => {
       this.mapReady.set(true);
       this.fieldMap?.resize();
       void this.renderMissionOnMap();
@@ -850,8 +852,7 @@ export class App implements OnInit, OnDestroy {
   private async renderMissionOnMap(): Promise<void> {
     const mission = this.mission();
     if (!mission || !this.fieldMap) return;
-    const team =
-      mission.lastPosition?.coordinates ?? [10.1764, 36.8427];
+    const team = mission.lastPosition?.coordinates;
     const destination =
       mission.incident?.location?.coordinates ?? [10.1855, 36.8375];
 
@@ -870,19 +871,31 @@ export class App implements OnInit, OnDestroy {
       );
     }
 
-    if (this.teamMapMarker) {
-      this.teamMapMarker.setLngLat(team);
+    if (team) {
+      if (this.teamMapMarker) {
+        this.teamMapMarker.setLngLat(team);
+      } else {
+        this.teamMapMarker = await addStegMarker(this.fieldMap, team, {
+          tone: 'team',
+          label: this.team()?.vehicle ?? 'Votre véhicule STEG',
+          detail: 'Dernière position GPS transmise',
+          showLabel: true,
+        });
+      }
+      drawStegRoute(this.fieldMap, 'maintenance-route', team, destination);
     } else {
-      this.teamMapMarker = await addStegMarker(this.fieldMap, team, {
-        tone: 'team',
-        label: this.team()?.vehicle ?? 'Votre véhicule STEG',
-        detail: 'Position exacte de la mission',
-        showLabel: true,
-      });
+      this.teamMapMarker?.remove();
+      this.teamMapMarker = undefined;
+      removeStegRoute(this.fieldMap, 'maintenance-route');
     }
 
-    drawStegRoute(this.fieldMap, 'maintenance-route', team, destination);
-    if (this.mapReady()) fitStegMap(this.fieldMap, [team, destination], 62);
+    if (this.mapReady()) {
+      fitStegMap(
+        this.fieldMap,
+        team ? [team, destination] : [destination],
+        62,
+      );
+    }
   }
 
   private initializeAppUpdates(): void {

@@ -200,7 +200,7 @@
               </article>
               <article>
                 <span class="metric-icon amber"><lucide-icon name="users" [size]="19"></lucide-icon></span>
-                <div><small>Clients concernés</small><strong>{{ dashboard()?.situation?.affectedCustomers?.toLocaleString('fr-FR') }}</strong></div>
+                <div><small>Clients concernés</small><strong>{{ dashboard()?.situation?.affectedCustomers?.toLocaleString('fr-FR') ?? 0 }}</strong></div>
               <em>
                 {{ dashboard()?.situation?.communityConfirmations }}
                 {{
@@ -213,7 +213,7 @@
               <article>
                 <span class="metric-icon green"><lucide-icon name="timer" [size]="19"></lucide-icon></span>
                 <div><small>Rétablissement estimé</small><strong>{{ formatTime(dashboard()?.situation?.estimatedRestorationAt) }}</strong></div>
-                <em>Estimation dynamique</em>
+                <em>{{ dashboard()?.situation?.estimatedRestorationAt ? 'Estimation dynamique' : 'Non requis' }}</em>
               </article>
               <article>
                 <span class="metric-icon violet"><lucide-icon name="file-check-2" [size]="19"></lucide-icon></span>
@@ -257,7 +257,7 @@
                     <div><small>Position</small><strong>{{ relativeTime(mission.lastPositionAt) }}</strong></div>
                   </footer>
                 </article>
-              } @else {
+              } @else if (dashboard()?.currentOutage) {
                 <article class="tracking-card scheduled-operation-card surface-card">
                   <header class="card-header">
                     <div>
@@ -293,6 +293,28 @@
                     </button>
                   </div>
                 </article>
+              } @else {
+                <article class="tracking-card scheduled-operation-card surface-card">
+                  <header class="card-header">
+                    <div>
+                      <span class="section-icon green"><lucide-icon name="badge-check" [size]="18"></lucide-icon></span>
+                      <div><h2>Aucune intervention active</h2><p>Votre secteur ne présente actuellement aucun incident confirmé</p></div>
+                    </div>
+                    <span class="scheduled-pill">RÉSEAU STABLE</span>
+                  </header>
+                  <div class="scheduled-operation-body">
+                    <span class="scheduled-operation-icon"><lucide-icon name="shield-check" [size]="30"></lucide-icon></span>
+                    <div class="scheduled-operation-copy">
+                      <span>SURVEILLANCE DU RÉSEAU ACTIVE</span>
+                      <h3>Aucune équipe n’est affectée à votre adresse.</h3>
+                      <p>Le suivi d’intervention apparaîtra uniquement lorsqu’un incident de votre contrat ou de votre secteur sera confirmé.</p>
+                    </div>
+                    <button type="button" (click)="openReport()">
+                      Signaler un problème réel
+                      <lucide-icon name="arrow-right" [size]="16"></lucide-icon>
+                    </button>
+                  </div>
+                </article>
               }
 
               <aside class="situation-side">
@@ -300,7 +322,7 @@
                   <header>
                     <span><lucide-icon name="zap-off" [size]="22"></lucide-icon></span>
                     <div><small>ÉTAT DE VOTRE ADRESSE</small><h2>{{ situationLabel(dashboard()!.situation.state) }}</h2></div>
-                    <em [attr.data-tone]="statusTone(dashboard()?.currentOutage?.status ?? 'active')">{{ statusLabel(dashboard()?.currentOutage?.status ?? 'active') }}</em>
+                    <em [attr.data-tone]="statusTone(dashboard()?.currentOutage?.status ?? (dashboard()?.mission ? 'in_progress' : 'normal'))">{{ statusLabel(dashboard()?.currentOutage?.status ?? (dashboard()?.mission ? 'in_progress' : 'normal')) }}</em>
                   </header>
                   <div class="cause-panel">
                     <small>INFORMATION TECHNIQUE</small>
@@ -327,7 +349,7 @@
               </aside>
             </section>
 
-            @if (dashboard()?.mission) {
+            @if ((dashboard()?.timeline?.length ?? 0) > 0) {
               <section class="timeline-card surface-card">
                 <header class="card-header">
                   <div>

@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NotificationChannel, NotificationsService } from '../notifications/notifications.service';
 import { OutageEntity, OutageStatus } from './outage.entity';
+import { resolveOutageZone } from './outage-zones';
 import { CreateOutageDto } from './outages.dto';
 
 @Injectable()
@@ -16,10 +17,29 @@ export class OutagesService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    const existing = await this.outages.find();
+    const missingCoordinates = existing.filter(
+      (outage) => outage.longitude === null || outage.latitude === null,
+    );
+    for (const outage of missingCoordinates) {
+      const zone = resolveOutageZone(outage.zoneId, outage.zoneLabel);
+      if (!zone) continue;
+      outage.longitude = zone.longitude;
+      outage.latitude = zone.latitude;
+      await this.outages.save(outage);
+    }
+
     if (
       this.config.get('SEED_DEMO_DATA', 'true') !== 'true' ||
-      (await this.outages.count()) > 0
-    ) return;
+      existing.length > 0
+    ) {
+      return;
+    }
+    const menzahZone = resolveOutageZone(
+      'zone-el-menzah-6-a3',
+      'El Menzah 6',
+    )!;
+    const bardoZone = resolveOutageZone('zone-le-bardo-b1', 'Le Bardo')!;
     await this.outages.save([
       this.outages.create({
         reference: 'OUT-2026-00001',
@@ -29,7 +49,9 @@ export class OutagesService implements OnModuleInit {
         status: OutageStatus.SCHEDULED,
         startsAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
         durationMinutes: 90,
-        affectedCustomers: 1842,
+        affectedCustomers: menzahZone.affectedCustomers,
+        longitude: menzahZone.longitude,
+        latitude: menzahZone.latitude,
         perimeter: null,
         supervisorApprovalRequired: true,
       }),
@@ -41,7 +63,9 @@ export class OutagesService implements OnModuleInit {
         status: OutageStatus.PENDING_APPROVAL,
         startsAt: new Date(Date.now() + 4 * 60 * 60 * 1000),
         durationMinutes: 45,
-        affectedCustomers: 2310,
+        affectedCustomers: bardoZone.affectedCustomers,
+        longitude: bardoZone.longitude,
+        latitude: bardoZone.latitude,
         perimeter: null,
         supervisorApprovalRequired: true,
       }),
@@ -60,6 +84,7 @@ export class OutagesService implements OnModuleInit {
 
   async create(dto: CreateOutageDto) {
     const sequence = await this.outages.count();
+    const zone = resolveOutageZone(dto.zoneId, dto.zoneLabel);
     return this.outages.save(
       this.outages.create({
         ...dto,
@@ -68,7 +93,9 @@ export class OutagesService implements OnModuleInit {
         status: dto.supervisorApprovalRequired
           ? OutageStatus.PENDING_APPROVAL
           : OutageStatus.SCHEDULED,
-        affectedCustomers: 1842,
+        affectedCustomers: zone?.affectedCustomers ?? 0,
+        longitude: zone?.longitude ?? null,
+        latitude: zone?.latitude ?? null,
         perimeter: null,
       }),
     );

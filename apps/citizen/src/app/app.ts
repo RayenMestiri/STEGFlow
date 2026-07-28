@@ -28,7 +28,9 @@ import {
   createStegMap,
   drawStegRoute,
   fitStegMap,
+  removeStegRoute,
   supportsStegMap,
+  whenStegMapReady,
   type StegCoordinates,
 } from 'shared-data-access';
 
@@ -527,6 +529,7 @@ export class App implements OnInit, OnDestroy {
         active: 'En cours',
         restored: 'Rétablie',
         closed: 'Clôturée',
+        normal: 'Normal',
         assigned: 'Affectée',
         accepted: 'Acceptée',
         en_route: 'En déplacement',
@@ -660,7 +663,7 @@ export class App implements OnInit, OnDestroy {
         this.safety.set(result.safety);
         this.loading.set(false);
         this.refreshing.set(false);
-        void this.renderTrackingMission();
+        this.syncTrackingMapState(result.dashboard);
         void this.renderPublicMap();
         if (showToast) {
           this.showToast(
@@ -685,7 +688,7 @@ export class App implements OnInit, OnDestroy {
       this.api.getCitizenDashboard().subscribe({
         next: (dashboard) => {
           this.dashboard.set(dashboard);
-          void this.renderTrackingMission();
+          this.syncTrackingMapState(dashboard);
         },
       });
     }, 15_000);
@@ -715,22 +718,45 @@ export class App implements OnInit, OnDestroy {
       },
     );
     await this.renderTrackingMission();
-    this.trackingMap.once('load', () => {
+    whenStegMapReady(this.trackingMap, () => {
       this.trackingMapReady.set(true);
       this.trackingMap?.resize();
       this.centerTrackingMap();
     });
   }
 
+  private syncTrackingMapState(dashboard: CitizenDashboard): void {
+    if (dashboard.mission) {
+      void this.renderTrackingMission();
+      return;
+    }
+    this.trackingMap?.remove();
+    this.trackingMap = undefined;
+    this.trackingMapElement = undefined;
+    this.teamMapMarker = undefined;
+    this.homeMapMarker = undefined;
+    this.trackingMapReady.set(false);
+  }
+
   private async renderTrackingMission(): Promise<void> {
     if (!this.trackingMap) return;
     const mission = this.dashboard()?.mission;
-    const coordinates: StegCoordinates = mission?.approximatePosition
-      ? [
-          mission.approximatePosition.longitude,
-          mission.approximatePosition.latitude,
-        ]
-      : [10.166, 36.849];
+    const approximatePosition = mission?.approximatePosition;
+    const home = this.detectedLocation()?.coordinates ?? this.homeCoordinates();
+    this.homeMapMarker?.setLngLat(home);
+    if (!approximatePosition) {
+      this.teamMapMarker?.remove();
+      this.teamMapMarker = undefined;
+      removeStegRoute(this.trackingMap, 'citizen-route');
+      if (this.trackingMapReady()) {
+        fitStegMap(this.trackingMap, [home], 62);
+      }
+      return;
+    }
+    const coordinates: StegCoordinates = [
+      approximatePosition.longitude,
+      approximatePosition.latitude,
+    ];
     if (this.teamMapMarker) {
       this.teamMapMarker.setLngLat(coordinates);
     } else {
@@ -744,8 +770,6 @@ export class App implements OnInit, OnDestroy {
         },
       );
     }
-    const home = this.detectedLocation()?.coordinates ?? this.homeCoordinates();
-    this.homeMapMarker?.setLngLat(home);
     drawStegRoute(this.trackingMap, 'citizen-route', coordinates, home);
     if (this.trackingMapReady()) {
       fitStegMap(this.trackingMap, [coordinates, home], 62);
@@ -772,7 +796,7 @@ export class App implements OnInit, OnDestroy {
       },
     );
     await this.renderPublicMap();
-    this.outageMap.once('load', () => {
+    whenStegMapReady(this.outageMap, () => {
       this.mapReady.set(true);
       this.outageMap?.resize();
       this.centerOutageMap();

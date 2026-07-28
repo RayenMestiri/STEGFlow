@@ -51,6 +51,9 @@ export class IncidentEntity {
   @Column({ type: 'varchar', nullable: true })
   contractNumber!: string | null;
 
+  @Column({ type: 'uuid', nullable: true })
+  reportedByUserId!: string | null;
+
   @Column({ type: 'varchar', nullable: true })
   assignedTeamCode!: string | null;
 

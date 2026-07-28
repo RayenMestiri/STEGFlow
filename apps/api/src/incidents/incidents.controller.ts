@@ -26,6 +26,7 @@ export class IncidentsController {
     return this.incidents.create({
       ...dto,
       contractNumber: request.user.contractNumber ?? dto.contractNumber,
+      reportedByUserId: request.user.id,
     });
   }
 }

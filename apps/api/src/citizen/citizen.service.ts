@@ -5,6 +5,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { IncidentEntity, IncidentStatus } from '../incidents/incident.entity';
 import { MissionEntity, MissionStatus } from '../missions/mission.entity';
 import { OutageEntity, OutageStatus } from '../outages/outage.entity';
+import { resolveOutageZone } from '../outages/outage-zones';
 import {
   CitizenConfirmationEntity,
   CitizenConfirmationKind,
@@ -18,13 +19,6 @@ const PUBLIC_OUTAGE_STATUSES = [
   OutageStatus.RESTORED,
   OutageStatus.CLOSED,
 ];
-
-const ZONE_COORDINATES: Record<string, [number, number]> = {
-  'zone-el-menzah-6-a3': [10.1764, 36.8427],
-  'zone-le-bardo-b1': [10.1346, 36.8094],
-  'zone-la-marsa-hta': [10.3303, 36.8782],
-  'zone-cite-ennasr-2': [10.1635, 36.8667],
-};
 
 @Injectable()
 export class CitizenService {
@@ -40,94 +34,111 @@ export class CitizenService {
   ) {}
 
   async getDashboard(user: AuthenticatedUser) {
-    const [outages, incidents, mission, contributions] = await Promise.all([
-      this.outages.find({
-        where: { status: In(PUBLIC_OUTAGE_STATUSES) },
-        order: { startsAt: 'ASC' },
-      }),
-      this.incidents.find({ order: { createdAt: 'DESC' } }),
-      this.missions.findOne({
-        where: { status: Not(MissionStatus.CLOSED) },
-        order: { updatedAt: 'DESC' },
-      }),
-      this.confirmations.find({
-        where: { userId: user.id },
-        order: { createdAt: 'DESC' },
-        take: 12,
-      }),
-    ]);
+    const [outages, incidents, activeMissions, contributions] =
+      await Promise.all([
+        this.outages.find({
+          where: { status: In(PUBLIC_OUTAGE_STATUSES) },
+          order: { startsAt: 'ASC' },
+        }),
+        this.incidents.find({ order: { createdAt: 'DESC' } }),
+        this.missions.find({
+          where: { status: Not(MissionStatus.CLOSED) },
+          order: { updatedAt: 'DESC' },
+        }),
+        this.confirmations.find({
+          where: { userId: user.id },
+          order: { createdAt: 'DESC' },
+          take: 12,
+        }),
+      ]);
 
-    const userZone = user.district ?? user.delegation ?? 'El Menzah 6';
-    const zoneOutages = outages.filter((outage) =>
-      this.matchesUserZone(outage.zoneLabel, user),
-    );
+    const userZone = this.userZoneLabel(user);
+
+    // Filter reports explicitly created by THIS user
+    const myReports = incidents
+      .filter((incident) => incident.reportedByUserId === user.id)
+      .slice(0, 10);
+
+    // Active incident created by this user
+    const currentIncident =
+      myReports.find(
+        (incident) =>
+          ![IncidentStatus.RESOLVED, IncidentStatus.REJECTED].includes(
+            incident.status,
+          ),
+      ) ?? null;
+
+    // Active public outage in user's zone
+    const hasGeographicProfile = this.hasGeographicProfile(user);
+    const zoneOutages = hasGeographicProfile
+      ? outages.filter((outage) =>
+          this.matchesUserZone(outage.zoneLabel, user),
+        )
+      : [];
     const currentOutage =
       zoneOutages.find((outage) =>
         [OutageStatus.ACTIVE, OutageStatus.NOTIFIED].includes(outage.status),
       ) ??
       zoneOutages.find((outage) => outage.status === OutageStatus.SCHEDULED) ??
       null;
-    const zoneIncidents = incidents.filter((incident) =>
-      this.matchesUserZone(incident.address, user),
-    );
-    const currentIncident =
-      zoneIncidents.find(
-        (incident) =>
-          ![IncidentStatus.RESOLVED, IncidentStatus.REJECTED].includes(
-            incident.status,
-          ),
-      ) ?? null;
-    const outageConfirmationCount = await this.confirmations.count({
-      where: {
-        zoneId:
-          currentOutage?.zoneId ??
-          'zone-el-menzah-6-a3',
-        kind: CitizenConfirmationKind.OUTAGE_CONFIRMED,
-      },
-    });
-    const myReports = incidents
-      .filter(
-        (incident) =>
-          (user.contractNumber &&
-            incident.contractNumber === user.contractNumber) ||
-          this.matchesUserZone(incident.address, user),
-      )
-      .slice(0, 5);
+
+    // Active mission assigned to THIS user's active incident
+    const mission = currentIncident
+      ? activeMissions.find(
+          (candidate) => candidate.incidentId === currentIncident.id,
+        ) ?? null
+      : null;
+
+    const outageConfirmationCount = currentOutage
+      ? await this.confirmations.count({
+          where: {
+            zoneId: currentOutage.zoneId,
+            kind: CitizenConfirmationKind.OUTAGE_CONFIRMED,
+          },
+        })
+      : 0;
+
     const latestRestoration = contributions.find(
       (item) => item.kind === CitizenConfirmationKind.POWER_RESTORED,
     );
+
     const situationState = mission
       ? 'intervention_in_progress'
-      : currentOutage?.status === OutageStatus.ACTIVE
+      : currentIncident
         ? 'outage_confirmed'
-        : currentOutage
-          ? 'scheduled'
-          : 'normal';
+        : currentOutage?.status === OutageStatus.ACTIVE
+          ? 'outage_confirmed'
+          : currentOutage?.status === OutageStatus.SCHEDULED
+            ? 'scheduled'
+            : 'normal';
+
+    const generatedAt = new Date();
+    const zoneConfirmationCount = currentIncident
+      ? currentIncident.communityConfirmations
+      : outageConfirmationCount;
 
     return {
-      generatedAt: new Date().toISOString(),
+      generatedAt: generatedAt.toISOString(),
       profile: {
         firstName: user.firstName,
         contractNumber: user.contractNumber,
-        address: user.address ?? userZone,
+        address: user.address ?? 'Adresse non renseignée',
         district: userZone,
-        governorate: user.governorate ?? 'Tunis',
-        latitude: user.latitude ?? 36.8427,
-        longitude: user.longitude ?? 10.1764,
+        governorate: user.governorate ?? 'Non renseigné',
+        latitude: user.latitude ?? 36.8065,
+        longitude: user.longitude ?? 10.1815,
       },
       situation: {
         state: situationState,
-        zoneId: currentOutage?.zoneId ?? 'zone-el-menzah-6-a3',
+        zoneId: currentOutage?.zoneId ?? `profile-${user.id}`,
         zoneLabel: currentOutage?.zoneLabel ?? userZone,
         cause:
           mission?.diagnosis ??
           currentIncident?.description ??
-          'Incident réseau confirmé, diagnostic technique en cours.',
-        affectedCustomers: currentOutage?.affectedCustomers ?? 1842,
-        communityConfirmations: zoneIncidents.reduce(
-          (total, incident) => total + incident.communityConfirmations,
-          outageConfirmationCount,
-        ),
+          currentOutage?.reason ??
+          'Aucun incident réseau confirmé dans votre secteur.',
+        affectedCustomers: currentOutage?.affectedCustomers ?? (currentIncident ? 1 : 0),
+        communityConfirmations: zoneConfirmationCount,
         estimatedRestorationAt: this.estimatedRestorationAt(
           currentOutage,
           mission,
@@ -136,15 +147,15 @@ export class CitizenService {
           mission?.lastPositionAt ??
           currentIncident?.updatedAt ??
           currentOutage?.updatedAt ??
-          new Date(),
+          generatedAt,
         powerRestoredConfirmedAt: latestRestoration?.createdAt ?? null,
       },
       currentOutage: currentOutage
         ? this.toPublicOutage(currentOutage)
         : null,
       mission: mission ? this.toCitizenMission(mission) : null,
-      timeline: this.buildTimeline(mission),
-      upcomingOutages: outages
+      timeline: this.buildTimeline(currentIncident, mission),
+      upcomingOutages: zoneOutages
         .filter((outage) =>
           [OutageStatus.SCHEDULED, OutageStatus.NOTIFIED].includes(
             outage.status,
@@ -375,8 +386,9 @@ export class CitizenService {
   }
 
   private toPublicOutage(outage: OutageEntity) {
-    const [longitude, latitude] =
-      ZONE_COORDINATES[outage.zoneId] ?? [10.1815, 36.826];
+    const zone = resolveOutageZone(outage.zoneId, outage.zoneLabel);
+    const longitude = outage.longitude ?? zone?.longitude ?? 10.1815;
+    const latitude = outage.latitude ?? zone?.latitude ?? 36.8065;
     return {
       id: outage.id,
       reference: outage.reference,
@@ -415,7 +427,11 @@ export class CitizenService {
     };
   }
 
-  private buildTimeline(mission: MissionEntity | null) {
+  private buildTimeline(
+    incident: IncidentEntity | null,
+    mission: MissionEntity | null,
+  ) {
+    if (!incident && !mission) return [];
     const steps = [
       ['reported', 'Signalement reçu'],
       ['confirmed', 'Panne confirmée'],
@@ -426,8 +442,12 @@ export class CitizenService {
       ['repairing', 'Réparation & tests'],
       ['restored', 'Courant rétabli'],
     ];
-    const activeIndex = mission
-      ? ({
+
+    let activeIndex = 0;
+
+    if (mission) {
+      activeIndex =
+        ({
           assigned: 2,
           accepted: 2,
           en_route: 3,
@@ -437,8 +457,13 @@ export class CitizenService {
           testing: 6,
           restored: 7,
           closed: 7,
-        }[mission.status] ?? 1)
-      : 1;
+        }[mission.status] ?? 2);
+    } else if (incident) {
+      if (incident.status === IncidentStatus.DISPATCHED) activeIndex = 2;
+      else if (incident.status === IncidentStatus.VERIFIED) activeIndex = 1;
+      else activeIndex = 0;
+    }
+
     return steps.map(([key, label], index) => ({
       key,
       label,
@@ -450,9 +475,9 @@ export class CitizenService {
             : 'upcoming',
       at:
         index === activeIndex
-          ? mission?.updatedAt ?? new Date()
+          ? (mission?.updatedAt ?? incident?.updatedAt ?? null)
           : index < activeIndex
-            ? mission?.createdAt ?? new Date()
+            ? (incident?.createdAt ?? mission?.createdAt ?? null)
             : null,
     }));
   }
@@ -508,19 +533,55 @@ export class CitizenService {
         outage.startsAt.getTime() + outage.durationMinutes * 60_000,
       );
     }
+    if (!mission) return null;
     return new Date(
-      Date.now() + ((mission?.etaMinutes ?? 12) + 55) * 60_000,
+      Date.now() + ((mission.etaMinutes ?? 12) + 55) * 60_000,
     );
   }
 
   private matchesUserZone(value: string, user: AuthenticatedUser) {
     const normalized = this.normalize(value);
-    return [user.district, user.delegation, user.address]
+    return [
+      user.district,
+      user.delegation,
+      user.address ? this.generalizeAddress(user.address) : null,
+    ]
       .filter((entry): entry is string => Boolean(entry))
       .some((entry) => {
         const candidate = this.normalize(entry);
-        return normalized.includes(candidate) || candidate.includes(normalized);
+        return candidate.length >= 4 && normalized.includes(candidate);
       });
+  }
+
+  private incidentBelongsToUser(
+    incident: IncidentEntity,
+    user: AuthenticatedUser,
+  ) {
+    return (
+      incident.reportedByUserId === user.id ||
+      Boolean(
+        user.contractNumber &&
+          incident.contractNumber === user.contractNumber,
+      )
+    );
+  }
+
+  private hasGeographicProfile(user: AuthenticatedUser) {
+    return Boolean(
+      user.district ||
+        user.delegation ||
+        user.address ||
+        (user.latitude !== null && user.longitude !== null),
+    );
+  }
+
+  private userZoneLabel(user: AuthenticatedUser) {
+    return (
+      user.district ??
+      user.delegation ??
+      (user.address ? this.generalizeAddress(user.address) : null) ??
+      'Adresse non renseignée'
+    );
   }
 
   private generalizeAddress(address: string) {

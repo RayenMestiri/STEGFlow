@@ -29,6 +29,7 @@ import {
   createStegMap,
   fitStegMap,
   supportsStegMap,
+  whenStegMapReady,
   type StegCoordinates,
 } from 'shared-data-access';
 
@@ -241,8 +242,6 @@ export class App implements OnInit, OnDestroy {
   private readonly outageMapMarkers: Marker[] = [];
   private operationsTimer?: number;
   private toastTimer?: number;
-  private readonly outageCoordinates: StegCoordinates = [10.1818, 36.8415];
-
   @ViewChild('networkMapCanvas')
   set networkMapCanvas(container: ElementRef<HTMLDivElement> | undefined) {
     if (!container) return;
@@ -304,7 +303,6 @@ export class App implements OnInit, OnDestroy {
 
   protected centerOperationsMap(): void {
     const coordinates = [
-      this.outageCoordinates,
       ...this.outageMapMarkers.map((marker) => {
         const point = marker.getLngLat();
         return [point.lng, point.lat] as StegCoordinates;
@@ -772,8 +770,8 @@ export class App implements OnInit, OnDestroy {
     this.operationsMap?.remove();
     this.mapElement = element;
     this.mapReady.set(false);
-    this.operationsMap = await createStegMap(element, [10.205, 36.842], 11.6);
-    this.operationsMap.once('load', () => {
+    this.operationsMap = await createStegMap(element, [10.1815, 36.8065], 10.8);
+    whenStegMapReady(this.operationsMap, () => {
       this.mapReady.set(true);
       this.operationsMap?.resize();
       this.centerOperationsMap();
@@ -806,30 +804,22 @@ export class App implements OnInit, OnDestroy {
   private async renderOutages(outages: Outage[]): Promise<void> {
     if (!this.operationsMap) return;
     this.outageMapMarkers.splice(0).forEach((marker) => marker.remove());
-    
-    // Primary default outage marker
-    this.outageMapMarkers.push(
-      await addStegMarker(this.operationsMap, this.outageCoordinates, {
-        tone: 'outage',
-        label: 'Coupure · El Menzah 6',
-        detail: '1 842 clients concernés · Départ A3-07',
-        showLabel: true,
-      }),
-    );
-
-    // Dynamic outages from API
     for (const outage of outages) {
-      if (outage.zoneLabel.includes('El Menzah')) continue;
-      const coords: StegCoordinates = [10.2150, 36.8480];
+      if (outage.longitude == null || outage.latitude == null) continue;
+      const coords: StegCoordinates = [
+        outage.longitude,
+        outage.latitude,
+      ];
       this.outageMapMarkers.push(
         await addStegMarker(this.operationsMap, coords, {
           tone: 'outage',
           label: `${outage.reference} · ${outage.zoneLabel}`,
           detail: `${outage.affectedCustomers ?? 0} clients concernés · ${outage.reason}`,
-          showLabel: true,
+          showLabel: outages.length <= 4,
         }),
       );
     }
+    if (this.mapReady()) this.centerOperationsMap();
   }
 
   private async renderTeams(missions: Mission[]): Promise<void> {
@@ -862,21 +852,6 @@ export class App implements OnInit, OnDestroy {
       }
     }
 
-    // Default fallback coordinates for active STEGFlow teams if unpositioned
-    if (!teamPositions.size && this.teams().length) {
-      const defaultTeamCoords: StegCoordinates[] = [
-        [10.1764, 36.8427],
-        [10.2211, 36.7532],
-        [10.3057, 36.8589],
-      ];
-      this.teams().forEach((t, i) => {
-        teamPositions.set(t.code, {
-          coords: defaultTeamCoords[i % defaultTeamCoords.length],
-          detail: `Équipe STEG ${t.code} · Operational`,
-        });
-      });
-    }
-
     for (const [code, info] of teamPositions.entries()) {
       this.teamMapMarkers.push(
         await addStegMarker(this.operationsMap, info.coords, {
@@ -897,7 +872,8 @@ export class App implements OnInit, OnDestroy {
     const list = incidents.length ? incidents : this.incidentRecords();
     
     for (const incident of list) {
-      const coords = this.extractCoords(incident.location) ?? [10.1855, 36.8375];
+      const coords = this.extractCoords(incident.location);
+      if (!coords) continue;
       this.incidentMapMarkers.push(
         await addStegMarker(this.operationsMap, coords, {
           tone: incident.severity === 'critical' ? 'incident' : 'outage',
