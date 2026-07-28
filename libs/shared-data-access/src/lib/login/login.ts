@@ -261,6 +261,11 @@ export class Login {
     this.error.set('');
     this.step.set('identity');
     this.registerMode.update((value) => !value);
+    this.coordinates.set(null);
+    if (this.marker) {
+      this.marker.remove();
+      this.marker = undefined;
+    }
   }
 
   protected trackCapsLock(event: KeyboardEvent): void {

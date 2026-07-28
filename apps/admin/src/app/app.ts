@@ -295,9 +295,12 @@ export class App implements OnInit, OnDestroy {
   }
 
   protected zoomOperationsMap(delta: number): void {
-    this.operationsMap?.easeTo({
-      zoom: (this.operationsMap?.getZoom() ?? 12) + delta,
-      duration: 280,
+    if (!this.operationsMap) return;
+    const currentZoom = this.operationsMap.getZoom();
+    const targetZoom = Math.max(4, Math.min(18, currentZoom + delta));
+    this.operationsMap.easeTo({
+      zoom: targetZoom,
+      duration: 300,
     });
   }
 
@@ -316,7 +319,13 @@ export class App implements OnInit, OnDestroy {
         return [point.lng, point.lat] as StegCoordinates;
       }),
     ];
-    if (this.operationsMap) fitStegMap(this.operationsMap, coordinates, 64);
+    if (this.operationsMap) {
+      if (coordinates.length) {
+        fitStegMap(this.operationsMap, coordinates, 64);
+      } else {
+        this.operationsMap.flyTo({ center: [10.1815, 36.826], zoom: 11.5, duration: 400 });
+      }
+    }
   }
 
   protected toggleOperationalLayers(): void {

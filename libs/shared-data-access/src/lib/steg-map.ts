@@ -47,7 +47,11 @@ const MARKER_SYMBOLS: Record<StegMarkerTone, string> = {
 };
 
 export function supportsStegMap(): boolean {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
+  if (
+    typeof window === 'undefined' ||
+    typeof document === 'undefined' ||
+    typeof window.WebGL2RenderingContext === 'undefined'
+  ) {
     return false;
   }
   try {
@@ -95,7 +99,7 @@ export async function createStegMap(
     style: MAP_STYLE,
     center: center as LngLatLike,
     zoom,
-    minZoom: 6,
+    minZoom: 4,
     maxZoom: 19,
     attributionControl: {
       compact: true,
