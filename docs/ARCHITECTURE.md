@@ -71,5 +71,5 @@ et SMTP se branchent dans `notifications.service.ts`.
 ## Déploiement
 
 Docker Compose démarre Redis, Express et les trois bundles Angular. MongoDB Atlas
-et Cloudinary restent des services managés externes. Les anciens services
-PostgreSQL/PostGIS et MinIO ne font plus partie du runtime.
+et Cloudinary restent des services managés externes. Le dépôt ne contient qu’une
+implémentation backend : Express/Mongoose dans `backend/`.

@@ -30,7 +30,7 @@ Plateforme opérationnelle pour les citoyens, le centre de pilotage STEG et les
 backend/                   API Express/Mongoose indépendante
   src/
     config/                Validation de l’environnement
-    db/                    Connexion, données initiales et migration
+    db/                    Connexion et données initiales MongoDB
     middleware/            Auth, rôles, validation et erreurs
     models/                Collections Mongoose
     routes/                Routes REST par domaine
@@ -43,8 +43,9 @@ apps/
 libs/shared-data-access/   Contrats API et composants partagés
 ```
 
-Le backend est volontairement séparé des applications frontend. L’ancien
-backend NestJS sous `apps/api` n’est plus référencé par les scripts ni par Docker.
+Le projet utilise exclusivement l’architecture MEAN. Le backend Express est
+volontairement séparé des applications Angular et aucune implémentation serveur
+n’est conservée dans `apps/`.
 
 ## Configuration
 
@@ -84,21 +85,6 @@ npm run start:admin
 npm run start:citizen
 npm run start:maintenance
 ```
-
-## Migration PostgreSQL vers MongoDB
-
-La migration conserve les identifiants, relations, historiques, positions
-GeoJSON, comptes et journaux :
-
-```powershell
-npm run migrate:postgres -- --replace
-```
-
-`--replace` ne doit être utilisé que pour une première bascule contrôlée. Sans
-ce paramètre, le script effectue des `upsert`.
-
-Les anciens mots de passe Argon2 restent valides : à la première connexion,
-ils sont automatiquement re-hachés avec le mécanisme du nouveau backend.
 
 ## Vérification
 
