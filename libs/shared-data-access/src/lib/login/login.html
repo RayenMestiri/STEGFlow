@@ -1,0 +1,384 @@
+<main class="auth">
+  <section class="brand">
+    <div class="brand-top">
+      <img src="/steg-logo.png" alt="Logo STEG" />
+      <div>
+        <strong>STEG<span>Flow</span></strong>
+        <small>Plateforme opérationnelle intelligente</small>
+      </div>
+    </div>
+
+    <div class="brand-copy">
+      <span class="eyebrow"><i></i> SERVICE NATIONAL · TEMPS RÉEL</span>
+      <h1>{{ title }}</h1>
+      <p>{{ subtitle }}</p>
+      <div class="trust-grid">
+        <article><strong>24/7</strong><span>Supervision continue</span></article>
+        <article><strong>&lt; 30 s</strong><span>Actualisation réseau</span></article>
+        <article><strong>100%</strong><span>Traçabilité des actions</span></article>
+      </div>
+      <ul class="brand-points">
+        <li><i class="tick"></i>Alertes et suivi opérationnel en temps réel</li>
+        <li><i class="tick"></i>Données sécurisées selon votre rôle</li>
+        <li><i class="tick"></i>Assistance STEG disponible 24 h/24</li>
+      </ul>
+    </div>
+
+    <div class="brand-footer">
+      <span>Connexion chiffrée</span><i></i>
+      <span>Infrastructure STEG</span><i></i>
+      <span>Données protégées</span>
+    </div>
+    <div class="orb one"></div>
+    <div class="orb two"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-inner">
+      <div class="mobile-brand">
+        <img src="/steg-logo.png" alt="Logo STEG" />
+        <strong>STEG<span>Flow</span></strong>
+      </div>
+
+      <span class="portal-pill">{{ portalLabel }}</span>
+      <h2>{{ registerMode() ? 'Créer votre compte' : 'Bienvenue' }}</h2>
+      <p class="lede">
+        {{
+          registerMode()
+            ? 'Quatre étapes simples pour recevoir les informations de votre zone.'
+            : 'Identifiez-vous pour accéder à votre espace sécurisé.'
+        }}
+      </p>
+
+      @if (error()) {
+        <div class="alert danger" role="alert">
+          <span class="alert-icon">!</span>
+          <p>{{ error() }}</p>
+        </div>
+      }
+
+      @if (!registerMode()) {
+        <form class="stack" [formGroup]="loginForm" (ngSubmit)="submitLogin()">
+          <label class="field">
+            <span class="field-label">Adresse e-mail</span>
+            <span class="control" [class.invalid]="invalid(loginForm.controls.email)">
+              <i class="glyph">@</i>
+              <input
+                type="email"
+                formControlName="email"
+                autocomplete="email"
+                placeholder="nom@exemple.tn"
+              />
+            </span>
+            @if (invalid(loginForm.controls.email)) {
+              <small class="field-error">{{ errorText(loginForm.controls.email, 'Adresse e-mail') }}</small>
+            }
+          </label>
+
+          <label class="field">
+            <span class="field-label">Mot de passe</span>
+            <span class="control" [class.invalid]="invalid(loginForm.controls.password)">
+              <i class="glyph">●</i>
+              <input
+                [type]="showPassword() ? 'text' : 'password'"
+                formControlName="password"
+                autocomplete="current-password"
+                placeholder="8 caractères minimum"
+                (keydown)="trackCapsLock($event)"
+                (keyup)="trackCapsLock($event)"
+              />
+              <button class="ghost" type="button" (click)="showPassword.set(!showPassword())">
+                {{ showPassword() ? 'Masquer' : 'Voir' }}
+              </button>
+            </span>
+            @if (capsLockOn()) {
+              <small class="field-hint warn">Verr. Maj est activé.</small>
+            }
+            @if (invalid(loginForm.controls.password)) {
+              <small class="field-error">{{ errorText(loginForm.controls.password, 'Mot de passe') }}</small>
+            }
+          </label>
+
+          <div class="row-between">
+            <label class="checkbox">
+              <input type="checkbox" formControlName="remember" />
+              <span>Garder ma session</span>
+            </label>
+            <button class="link" type="button">Mot de passe oublié ?</button>
+          </div>
+
+          <button class="primary" type="submit" [disabled]="auth.loading()">
+            <span>{{ auth.loading() ? 'Connexion sécurisée…' : 'Se connecter' }}</span>
+            <i>→</i>
+          </button>
+        </form>
+
+        <div class="divider"><span>ou utiliser un compte de démonstration</span></div>
+        <button class="demo" type="button" (click)="fillDemo()">
+          <span class="demo-tag">DEMO</span>
+          <span class="demo-copy">
+            <strong>Remplir les identifiants {{ portal() }}</strong>
+            <small>Disponible uniquement dans l’environnement local</small>
+          </span>
+          <i>↗</i>
+        </button>
+
+        @if (portal() === 'citizen') {
+          <p class="switch">
+            Nouveau sur STEGFlow ?
+            <button class="link" type="button" (click)="toggleMode()">Créer un compte</button>
+          </p>
+        }
+      } @else {
+        <ol class="stepper" aria-label="Étapes de création du compte">
+          @for (item of steps; track item.key; let index = $index) {
+            <li [class.current]="item.key === step()" [class.done]="index < stepIndex()">
+              <button
+                type="button"
+                [disabled]="index > stepIndex()"
+                (click)="goToStep(item.key)"
+              >
+                <span class="bullet">{{ index < stepIndex() ? '✓' : index + 1 }}</span>
+                <span class="step-copy"><strong>{{ item.label }}</strong><small>{{ item.hint }}</small></span>
+              </button>
+            </li>
+          }
+        </ol>
+        <div class="progress" aria-hidden="true"><i [style.width.%]="progress()"></i></div>
+
+        @if (step() === 'identity') {
+          <form class="stack" [formGroup]="identityForm" (ngSubmit)="nextStep()">
+            <div class="grid-2">
+              <label class="field">
+                <span class="field-label">Prénom</span>
+                <span class="control" [class.invalid]="invalid(identityForm.controls.firstName)">
+                  <input formControlName="firstName" autocomplete="given-name" placeholder="Votre prénom" />
+                </span>
+                @if (invalid(identityForm.controls.firstName)) {
+                  <small class="field-error">{{ errorText(identityForm.controls.firstName, 'Prénom') }}</small>
+                }
+              </label>
+              <label class="field">
+                <span class="field-label">Nom</span>
+                <span class="control" [class.invalid]="invalid(identityForm.controls.lastName)">
+                  <input formControlName="lastName" autocomplete="family-name" placeholder="Votre nom" />
+                </span>
+                @if (invalid(identityForm.controls.lastName)) {
+                  <small class="field-error">{{ errorText(identityForm.controls.lastName, 'Nom') }}</small>
+                }
+              </label>
+            </div>
+
+            <label class="field">
+              <span class="field-label">Adresse e-mail</span>
+              <span class="control" [class.invalid]="invalid(identityForm.controls.email)">
+                <i class="glyph">@</i>
+                <input formControlName="email" type="email" autocomplete="email" placeholder="nom@exemple.tn" />
+              </span>
+              @if (invalid(identityForm.controls.email)) {
+                <small class="field-error">{{ errorText(identityForm.controls.email, 'Adresse e-mail') }}</small>
+              }
+            </label>
+
+            <label class="field">
+              <span class="field-label">Téléphone <em>facultatif</em></span>
+              <span class="control" [class.invalid]="invalid(identityForm.controls.phone)">
+                <i class="glyph">+216</i>
+                <input formControlName="phone" type="tel" autocomplete="tel" placeholder="20 000 000" />
+              </span>
+              @if (invalid(identityForm.controls.phone)) {
+                <small class="field-error">Saisissez un numéro tunisien valide.</small>
+              }
+            </label>
+
+            <button class="primary" type="submit"><span>Continuer vers la sécurité</span><i>→</i></button>
+          </form>
+        }
+
+        @if (step() === 'security') {
+          <form class="stack" [formGroup]="securityForm" (ngSubmit)="nextStep()">
+            <label class="field">
+              <span class="field-label">Mot de passe</span>
+              <span class="control" [class.invalid]="invalid(securityForm.controls.password)">
+                <i class="glyph">●</i>
+                <input
+                  [type]="showPassword() ? 'text' : 'password'"
+                  formControlName="password"
+                  autocomplete="new-password"
+                  placeholder="Créez votre mot de passe"
+                  (keydown)="trackCapsLock($event)"
+                  (keyup)="trackCapsLock($event)"
+                />
+                <button class="ghost" type="button" (click)="showPassword.set(!showPassword())">
+                  {{ showPassword() ? 'Masquer' : 'Voir' }}
+                </button>
+              </span>
+            </label>
+
+            <section class="strength" [attr.data-level]="assessment().level">
+              <div class="strength-bars">
+                @for (bar of [1, 2, 3, 4]; track bar) {
+                  <i [class.on]="assessment().score >= bar"></i>
+                }
+              </div>
+              <div class="strength-head">Robustesse : <strong>{{ assessment().label }}</strong></div>
+              <p class="strength-hint">{{ assessment().hint }}</p>
+              <ul class="rules">
+                @for (rule of passwordRules; track rule.id) {
+                  <li [class.ok]="assessment().satisfied.includes(rule.id)">
+                    <i></i>{{ rule.label }}
+                  </li>
+                }
+              </ul>
+            </section>
+
+            <label class="field">
+              <span class="field-label">Confirmer le mot de passe</span>
+              <span
+                class="control"
+                [class.invalid]="securityForm.hasError('passwordMismatch') && securityForm.controls.confirmPassword.touched"
+              >
+                <i class="glyph">●</i>
+                <input
+                  type="password"
+                  formControlName="confirmPassword"
+                  autocomplete="new-password"
+                  placeholder="Répétez votre mot de passe"
+                />
+              </span>
+              @if (securityForm.hasError('passwordMismatch') && securityForm.controls.confirmPassword.touched) {
+                <small class="field-error">Les mots de passe ne correspondent pas.</small>
+              }
+            </label>
+
+            <div class="actions">
+              <button class="secondary" type="button" (click)="previousStep()">← Retour</button>
+              <button class="primary" type="submit"><span>Continuer</span><i>→</i></button>
+            </div>
+          </form>
+        }
+
+        @if (step() === 'location') {
+          <form class="stack" [formGroup]="locationForm" (ngSubmit)="nextStep()">
+            <div class="grid-2">
+              <label class="field">
+                <span class="field-label">Gouvernorat</span>
+                <span class="control select" [class.invalid]="invalid(locationForm.controls.governorate)">
+                  <select formControlName="governorate">
+                    <option value="">Sélectionner</option>
+                    @for (governorate of governorates; track governorate.code) {
+                      <option [value]="governorate.code">{{ governorate.name }}</option>
+                    }
+                  </select>
+                </span>
+                @if (invalid(locationForm.controls.governorate)) {
+                  <small class="field-error">{{ errorText(locationForm.controls.governorate, 'Gouvernorat') }}</small>
+                }
+              </label>
+              <label class="field">
+                <span class="field-label">Délégation</span>
+                <span class="control select" [class.invalid]="invalid(locationForm.controls.delegation)">
+                  <select formControlName="delegation" [disabled]="!delegations().length">
+                    <option value="">Sélectionner</option>
+                    @for (delegation of delegations(); track delegation) {
+                      <option [value]="delegation">{{ delegation }}</option>
+                    }
+                  </select>
+                </span>
+                @if (invalid(locationForm.controls.delegation)) {
+                  <small class="field-error">{{ errorText(locationForm.controls.delegation, 'Délégation') }}</small>
+                }
+              </label>
+            </div>
+
+            <label class="field">
+              <span class="field-label">Adresse</span>
+              <span class="control" [class.invalid]="invalid(locationForm.controls.address)">
+                <input formControlName="address" autocomplete="street-address" placeholder="Rue, numéro, résidence…" />
+              </span>
+              @if (invalid(locationForm.controls.address)) {
+                <small class="field-error">{{ errorText(locationForm.controls.address, 'Adresse') }}</small>
+              }
+            </label>
+
+            <div class="grid-2">
+              <label class="field">
+                <span class="field-label">Quartier <em>facultatif</em></span>
+                <span class="control"><input formControlName="district" placeholder="Ex. El Menzah 6" /></span>
+              </label>
+              <label class="field">
+                <span class="field-label">N° contrat <em>facultatif</em></span>
+                <span class="control" [class.invalid]="invalid(locationForm.controls.contractNumber)">
+                  <input formControlName="contractNumber" placeholder="Ex. STEG-8042" />
+                </span>
+              </label>
+            </div>
+
+            <section class="map-block">
+              <div class="map-head">
+                <div>
+                  <strong>Position du logement</strong>
+                  <small>Placez l’épingle près de votre compteur pour des alertes plus précises.</small>
+                </div>
+                <button class="secondary compact" type="button" (click)="locateMe()" [disabled]="locating()">
+                  {{ locating() ? 'Localisation…' : '⌖ Me localiser' }}
+                </button>
+              </div>
+              <div #locationMap class="map-canvas" aria-label="Carte de sélection de l’adresse"></div>
+              <div class="map-foot">
+                <span class="coords" [class.set]="coordinates()"><i></i>{{ coordinatesLabel() }}</span>
+                @if (coordinates()) {
+                  <button class="link" type="button" (click)="clearPosition()">Effacer la position</button>
+                }
+              </div>
+              @if (locationNotice()) {
+                <p class="map-notice">{{ locationNotice() }}</p>
+              }
+            </section>
+
+            <div class="actions">
+              <button class="secondary" type="button" (click)="previousStep()">← Retour</button>
+              <button class="primary" type="submit"><span>Vérifier mes informations</span><i>→</i></button>
+            </div>
+          </form>
+        }
+
+        @if (step() === 'confirm') {
+          <form class="stack" [formGroup]="consentForm" (ngSubmit)="submitRegistration()">
+            <dl class="recap">
+              @for (item of recap(); track item.label) {
+                <div><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>
+              }
+            </dl>
+
+            <label class="checkbox consent" [class.invalid]="invalid(consentForm.controls.acceptTerms)">
+              <input type="checkbox" formControlName="acceptTerms" />
+              <span>
+                J’accepte les conditions d’utilisation et la politique de confidentialité de STEGFlow.
+              </span>
+            </label>
+            @if (invalid(consentForm.controls.acceptTerms)) {
+              <small class="field-error">Votre accord est nécessaire pour créer le compte.</small>
+            }
+
+            <div class="actions">
+              <button class="secondary" type="button" (click)="previousStep()">← Modifier</button>
+              <button class="primary" type="submit" [disabled]="auth.loading()">
+                <span>{{ auth.loading() ? 'Création sécurisée…' : 'Créer mon compte' }}</span><i>✓</i>
+              </button>
+            </div>
+          </form>
+        }
+
+        <p class="switch">
+          Vous avez déjà un compte ?
+          <button class="link" type="button" (click)="toggleMode()">Se connecter</button>
+        </p>
+      }
+
+      <p class="legal">
+        Données chiffrées · Accès contrôlé · Localisation limitée au service concerné
+      </p>
+    </div>
+  </section>
+</main>

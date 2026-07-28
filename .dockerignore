@@ -1,0 +1,10 @@
+.git
+.vscode
+node_modules
+apps/api/node_modules
+dist
+apps/api/dist
+coverage
+.angular
+*.log
+.env

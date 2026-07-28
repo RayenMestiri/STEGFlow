@@ -1,0 +1,873 @@
+@if (!auth.initialized()) {
+  <div class="auth-loading">
+    <img src="/steg-logo.png" alt="STEG" />
+    <span></span>
+    <p>Chargement de votre espace citoyen…</p>
+  </div>
+} @else if (!auth.isAuthenticated()) {
+  <steg-login portal="citizen" (signedIn)="handleSignedIn()"></steg-login>
+} @else {
+  <div class="citizen-shell">
+    <header class="topbar">
+      <button class="brand" type="button" (click)="selectNav('situation')" aria-label="Accueil STEGFlow">
+        <span><img src="/steg-logo.png" alt="" /></span>
+        <strong>STEG<em>Flow</em></strong>
+        <small>Espace citoyen</small>
+      </button>
+
+      <nav aria-label="Navigation citoyenne">
+        <button type="button" [class.active]="activeNav() === 'situation'" (click)="selectNav('situation')">
+          <lucide-icon name="house" [size]="18"></lucide-icon>
+          <span>Ma situation</span>
+        </button>
+        <button type="button" [class.active]="activeNav() === 'map'" (click)="selectNav('map')">
+          <lucide-icon name="map" [size]="18"></lucide-icon>
+          <span>Carte des coupures</span>
+        </button>
+        <button type="button" [class.active]="activeNav() === 'safety'" (click)="selectNav('safety')">
+          <lucide-icon name="shield-check" [size]="18"></lucide-icon>
+          <span>Aide & sécurité</span>
+        </button>
+      </nav>
+
+      <div class="top-actions">
+        <button
+          class="sync-button"
+          type="button"
+          (click)="refresh()"
+          [disabled]="refreshing()"
+          aria-label="Actualiser les données"
+        >
+          <lucide-icon name="refresh-cw" [size]="17" [class.spinning]="refreshing()"></lucide-icon>
+          <span>{{ refreshing() ? 'Synchronisation…' : 'Actualiser' }}</span>
+        </button>
+        <button class="address-button" type="button" (click)="addressOpen.set(!addressOpen()); notificationsOpen.set(false)">
+          <lucide-icon name="map-pin" [size]="16"></lucide-icon>
+          <span>{{ dashboard()?.profile?.district ?? 'Mon adresse' }}</span>
+          <lucide-icon name="chevron-down" [size]="14"></lucide-icon>
+        </button>
+        <button
+          class="icon-button"
+          type="button"
+          (click)="notificationsOpen.set(!notificationsOpen()); addressOpen.set(false)"
+          aria-label="Notifications"
+        >
+          <lucide-icon name="bell" [size]="19"></lucide-icon>
+          @if (unreadNotifications()) { <i>{{ unreadNotifications() }}</i> }
+        </button>
+        <button class="profile" type="button" (click)="logout()" title="Se déconnecter">
+          {{ auth.user()?.firstName?.slice(0, 1) }}{{ auth.user()?.lastName?.slice(0, 1) }}
+        </button>
+      </div>
+
+      @if (addressOpen()) {
+        <aside class="address-popover">
+          <header>
+            <span><lucide-icon name="home" [size]="18"></lucide-icon></span>
+            <div><strong>Adresse suivie</strong><small>Rattachement au contrat STEG</small></div>
+          </header>
+          <p>{{ dashboard()?.profile?.address }}</p>
+          <dl>
+            <div><dt>Contrat</dt><dd>{{ dashboard()?.profile?.contractNumber ?? '—' }}</dd></div>
+            <div><dt>District</dt><dd>{{ dashboard()?.profile?.district }}</dd></div>
+          </dl>
+          <button type="button" (click)="refreshClientLocation(); addressOpen.set(false)">
+            <lucide-icon name="locate-fixed" [size]="16"></lucide-icon>
+            Améliorer avec ma position
+          </button>
+        </aside>
+      }
+
+      @if (notificationsOpen()) {
+        <aside class="notification-popover">
+          <header>
+            <div><strong>Notifications</strong><small>{{ unreadNotifications() }} non lue(s)</small></div>
+            <button type="button" (click)="notificationsOpen.set(false)" aria-label="Fermer">
+              <lucide-icon name="x" [size]="16"></lucide-icon>
+            </button>
+          </header>
+          <div class="notification-list">
+            @for (notification of dashboard()?.notifications ?? []; track notification.id) {
+              <article [class.unread]="notification.unread">
+                <span [attr.data-type]="notification.type">
+                  <lucide-icon
+                    [name]="notification.type === 'mission' ? 'navigation' : notification.type === 'outage' ? 'zap-off' : 'message-square-warning'"
+                    [size]="17"
+                  ></lucide-icon>
+                </span>
+                <div>
+                  <strong>{{ notification.title }}</strong>
+                  <p>{{ notification.body }}</p>
+                  <small>{{ relativeTime(notification.createdAt) }}</small>
+                </div>
+              </article>
+            } @empty {
+              <div class="compact-empty"><lucide-icon name="bell-off" [size]="21"></lucide-icon>Aucune nouvelle notification.</div>
+            }
+          </div>
+        </aside>
+      }
+    </header>
+
+    @if (pageError()) {
+      <div class="page-alert">
+        <lucide-icon name="cloud-off" [size]="18"></lucide-icon>
+        <span>{{ pageError() }}</span>
+        <button type="button" (click)="refresh()">Réessayer</button>
+      </div>
+    }
+
+    <main class="portal-main">
+      @if (loading() && !dashboard()) {
+        <div class="dashboard-loading">
+          <span></span>
+          <strong>Synchronisation avec le réseau STEG</strong>
+          <p>Situation, carte et interventions sont en cours de chargement.</p>
+        </div>
+      } @else {
+        @switch (activeNav()) {
+          @case ('situation') {
+            <section class="situation-hero">
+              <div class="hero-grid"></div>
+              <div class="hero-copy">
+                <span class="status-eyebrow"><i></i> INFORMATION RÉSEAU EN DIRECT</span>
+                <h1>
+                  @if (dashboard()?.mission) {
+                    Une équipe intervient dans <strong>votre zone.</strong>
+                  } @else if (dashboard()?.situation?.state === 'scheduled') {
+                    Une opération est <strong>programmée.</strong>
+                  } @else {
+                    Votre alimentation est <strong>normale.</strong>
+                  }
+                </h1>
+                <p>
+                  {{ dashboard()?.mission
+                    ? 'Suivez la progression de l’équipe jusqu’au rétablissement du courant.'
+                    : 'Vous serez averti automatiquement de toute évolution dans votre secteur.' }}
+                </p>
+                <div class="hero-location">
+                  <span><lucide-icon name="map-pin" [size]="15"></lucide-icon><b>{{ dashboard()?.situation?.zoneLabel }}</b></span>
+                  <span><lucide-icon name="clock-3" [size]="15"></lucide-icon>Mis à jour {{ relativeTime(dashboard()?.situation?.lastUpdatedAt) }}</span>
+                </div>
+              </div>
+              <div class="hero-status-card">
+                @if (dashboard()?.mission; as mission) {
+                  <div>
+                    <span class="team-orb"><lucide-icon name="navigation" [size]="21"></lucide-icon></span>
+                    <em>INTERVENTION EN COURS</em>
+                  </div>
+                  <strong>{{ mission.etaMinutes ?? '—' }} <small>min</small></strong>
+                  <p>Arrivée estimée de {{ mission.teamCode }}</p>
+                  <div class="hero-progress"><i [style.width.%]="completedTimelineSteps() / (dashboard()?.timeline?.length || 1) * 100"></i></div>
+                  <span>{{ completedTimelineSteps() }} étapes sur {{ dashboard()?.timeline?.length ?? 8 }}</span>
+                } @else if (dashboard()?.currentOutage; as outage) {
+                  <div>
+                    <span class="team-orb scheduled"><lucide-icon name="calendar-clock" [size]="21"></lucide-icon></span>
+                    <em>OPÉRATION PROGRAMMÉE</em>
+                  </div>
+                  <strong>{{ formatTime(outage.startsAt) }}</strong>
+                  <p>Début prévu · durée estimée {{ outage.durationMinutes }} min</p>
+                  <div class="hero-progress scheduled"><i></i></div>
+                  <span>Notification activée pour votre secteur</span>
+                } @else {
+                  <div>
+                    <span class="team-orb normal"><lucide-icon name="badge-check" [size]="21"></lucide-icon></span>
+                    <em>RÉSEAU STABLE</em>
+                  </div>
+                  <strong>Normal</strong>
+                  <p>Aucun incident réseau confirmé dans votre secteur.</p>
+                  <div class="hero-progress normal"><i></i></div>
+                  <span>Supervision continue active</span>
+                }
+              </div>
+              <div class="hero-actions">
+                <button class="primary-action" type="button" (click)="openReport()">
+                  <lucide-icon name="message-square-plus" [size]="18"></lucide-icon>
+                  Signaler un problème
+                </button>
+                <button class="ghost-action" type="button" (click)="shareSituation()">
+                  <lucide-icon name="share-2" [size]="17"></lucide-icon>
+                  Partager
+                </button>
+              </div>
+            </section>
+
+            <section class="situation-metrics" aria-label="Résumé de votre situation">
+              <article>
+                <span class="metric-icon blue"><lucide-icon name="radio" [size]="19"></lucide-icon></span>
+                <div><small>État de la zone</small><strong>{{ situationLabel(dashboard()!.situation.state) }}</strong></div>
+                <em class="live-dot">En direct</em>
+              </article>
+              <article>
+                <span class="metric-icon amber"><lucide-icon name="users" [size]="19"></lucide-icon></span>
+                <div><small>Clients concernés</small><strong>{{ dashboard()?.situation?.affectedCustomers?.toLocaleString('fr-FR') }}</strong></div>
+              <em>
+                {{ dashboard()?.situation?.communityConfirmations }}
+                {{
+                  dashboard()?.situation?.communityConfirmations === 1
+                    ? 'confirmation'
+                    : 'confirmations'
+                }}
+              </em>
+              </article>
+              <article>
+                <span class="metric-icon green"><lucide-icon name="timer" [size]="19"></lucide-icon></span>
+                <div><small>Rétablissement estimé</small><strong>{{ formatTime(dashboard()?.situation?.estimatedRestorationAt) }}</strong></div>
+                <em>Estimation dynamique</em>
+              </article>
+              <article>
+                <span class="metric-icon violet"><lucide-icon name="file-check-2" [size]="19"></lucide-icon></span>
+                <div><small>Mes signalements</small><strong>{{ dashboard()?.myReports?.length ?? 0 }}</strong></div>
+                <em>Historique disponible</em>
+              </article>
+            </section>
+
+            <section class="situation-grid">
+              @if (dashboard()?.mission; as mission) {
+                <article class="tracking-card surface-card">
+                  <header class="card-header">
+                    <div>
+                      <span class="section-icon blue"><lucide-icon name="navigation" [size]="18"></lucide-icon></span>
+                      <div><h2>Suivi de l’équipe</h2><p>{{ mission.reference }} · Position protégée</p></div>
+                    </div>
+                    <span class="live-pill"><i></i> EN DIRECT</span>
+                  </header>
+                  <div class="tracking-map">
+                    <div #trackingMapCanvas class="map-canvas" aria-label="Carte de suivi de l’équipe STEG"></div>
+                    @if (!trackingMapReady()) {
+                      <div class="map-loading"><span></span>Connexion à la carte…</div>
+                    }
+                    <div class="map-privacy">
+                      <lucide-icon name="shield-check" [size]="14"></lucide-icon>
+                      Position arrondie et légèrement différée
+                    </div>
+                    <div class="map-controls">
+                      <button type="button" (click)="zoomTrackingMap(1)" aria-label="Zoom avant">+</button>
+                      <button type="button" (click)="zoomTrackingMap(-1)" aria-label="Zoom arrière">−</button>
+                      <button type="button" (click)="centerTrackingMap()" aria-label="Recentrer"><lucide-icon name="locate-fixed" [size]="15"></lucide-icon></button>
+                    </div>
+                  </div>
+                  <footer class="tracking-footer">
+                    <div class="eta-block">
+                      <span><lucide-icon name="navigation" [size]="19"></lucide-icon></span>
+                      <div><small>ARRIVÉE ESTIMÉE</small><strong>{{ mission.etaMinutes ?? '—' }} min</strong></div>
+                    </div>
+                    <div><small>Équipe</small><strong>{{ mission.teamCode }}</strong></div>
+                    <div><small>Étape actuelle</small><strong>{{ statusLabel(mission.status) }}</strong></div>
+                    <div><small>Position</small><strong>{{ relativeTime(mission.lastPositionAt) }}</strong></div>
+                  </footer>
+                </article>
+              } @else {
+                <article class="tracking-card scheduled-operation-card surface-card">
+                  <header class="card-header">
+                    <div>
+                      <span class="section-icon amber"><lucide-icon name="calendar-clock" [size]="18"></lucide-icon></span>
+                      <div><h2>Préparation de l’opération</h2><p>Aucune position d’équipe affichée avant affectation</p></div>
+                    </div>
+                    <span class="scheduled-pill">PROGRAMMÉE</span>
+                  </header>
+                  <div class="scheduled-operation-body">
+                    <span class="scheduled-operation-icon"><lucide-icon name="calendar-check-2" [size]="30"></lucide-icon></span>
+                    <div class="scheduled-operation-copy">
+                      <span>INFORMATION VÉRIFIÉE PAR LA STEG</span>
+                      <h3>Aucune équipe n’est encore affectée.</h3>
+                      <p>Le suivi GPS apparaîtra automatiquement ici dès qu’une équipe acceptera la mission.</p>
+                    </div>
+                    <dl>
+                      <div>
+                        <dt>Début prévu</dt>
+                        <dd>{{ formatDate(dashboard()?.currentOutage?.startsAt) }}</dd>
+                      </div>
+                      <div>
+                        <dt>Durée estimée</dt>
+                        <dd>{{ dashboard()?.currentOutage?.durationMinutes ?? '—' }} min</dd>
+                      </div>
+                      <div>
+                        <dt>Zone</dt>
+                        <dd>{{ dashboard()?.situation?.zoneLabel }}</dd>
+                      </div>
+                    </dl>
+                    <button type="button" (click)="selectNav('map')">
+                      Voir l’opération sur la carte
+                      <lucide-icon name="arrow-right" [size]="16"></lucide-icon>
+                    </button>
+                  </div>
+                </article>
+              }
+
+              <aside class="situation-side">
+                <article class="outage-state-card surface-card">
+                  <header>
+                    <span><lucide-icon name="zap-off" [size]="22"></lucide-icon></span>
+                    <div><small>ÉTAT DE VOTRE ADRESSE</small><h2>{{ situationLabel(dashboard()!.situation.state) }}</h2></div>
+                    <em [attr.data-tone]="statusTone(dashboard()?.currentOutage?.status ?? 'active')">{{ statusLabel(dashboard()?.currentOutage?.status ?? 'active') }}</em>
+                  </header>
+                  <div class="cause-panel">
+                    <small>INFORMATION TECHNIQUE</small>
+                    <strong>{{ dashboard()?.situation?.cause }}</strong>
+                    <p>La cause est communiquée uniquement après validation par le centre des opérations.</p>
+                  </div>
+                  <div class="restoration-row">
+                    <span><lucide-icon name="clock-arrow-up" [size]="18"></lucide-icon></span>
+                    <div><small>Rétablissement estimé</small><strong>{{ formatDate(dashboard()?.situation?.estimatedRestorationAt) }}</strong></div>
+                  </div>
+                  <button class="link-button" type="button" (click)="selectNav('map')">
+                    Voir la zone sur la carte <lucide-icon name="arrow-up-right" [size]="15"></lucide-icon>
+                  </button>
+                </article>
+
+                <article class="safety-mini-card">
+                  <span><lucide-icon name="shield-alert" [size]="21"></lucide-icon></span>
+                  <div>
+                    <strong>Un câble ou un coffret est dangereux ?</strong>
+                    <p>Restez à distance et ouvrez immédiatement les consignes adaptées.</p>
+                    <button type="button" (click)="selectNav('safety')">Ouvrir Aide & sécurité <span>→</span></button>
+                  </div>
+                </article>
+              </aside>
+            </section>
+
+            @if (dashboard()?.mission) {
+              <section class="timeline-card surface-card">
+                <header class="card-header">
+                  <div>
+                    <span class="section-icon green"><lucide-icon name="list-checks" [size]="18"></lucide-icon></span>
+                    <div><h2>Progression de l’intervention</h2><p>Chaque étape est horodatée par le centre ou l’équipe terrain</p></div>
+                  </div>
+                  <span class="progress-caption">{{ completedTimelineSteps() }} / {{ dashboard()?.timeline?.length ?? 8 }} étapes</span>
+                </header>
+                <div class="operation-timeline">
+                  @for (step of dashboard()?.timeline ?? []; track step.key; let index = $index) {
+                    <div class="timeline-step" [attr.data-state]="step.state">
+                      <i>
+                        @if (step.state === 'completed') {
+                          <lucide-icon name="check" [size]="13"></lucide-icon>
+                        } @else if (step.state === 'current') {
+                          <lucide-icon name="radio" [size]="12"></lucide-icon>
+                        } @else {
+                          {{ index + 1 }}
+                        }
+                      </i>
+                      <span><strong>{{ step.label }}</strong><small>{{ step.at ? formatTime(step.at) : 'À venir' }}</small></span>
+                    </div>
+                    @if (index < (dashboard()?.timeline?.length ?? 0) - 1) {
+                      <b [attr.data-state]="step.state"></b>
+                    }
+                  }
+                </div>
+              </section>
+            } @else if (dashboard()?.currentOutage; as outage) {
+              <section class="timeline-card surface-card">
+                <header class="card-header">
+                  <div>
+                    <span class="section-icon amber"><lucide-icon name="calendar-check-2" [size]="18"></lucide-icon></span>
+                    <div><h2>Préparation de l’opération</h2><p>Les informations publiées évoluent automatiquement</p></div>
+                  </div>
+                  <span class="progress-caption">Notification active</span>
+                </header>
+                <div class="operation-timeline preparation-timeline">
+                  <div class="timeline-step" data-state="completed">
+                    <i><lucide-icon name="check" [size]="13"></lucide-icon></i>
+                    <span><strong>Programme publié</strong><small>{{ formatTime(outage.updatedAt) }}</small></span>
+                  </div>
+                  <b data-state="completed"></b>
+                  <div class="timeline-step" data-state="current">
+                    <i><lucide-icon name="radio" [size]="12"></lucide-icon></i>
+                    <span><strong>Citoyens informés</strong><small>Actif</small></span>
+                  </div>
+                  <b data-state="current"></b>
+                  <div class="timeline-step">
+                    <i>3</i>
+                    <span><strong>Début prévu</strong><small>{{ formatTime(outage.startsAt) }}</small></span>
+                  </div>
+                  <b></b>
+                  <div class="timeline-step">
+                    <i>4</i>
+                    <span><strong>Fin estimée</strong><small>{{ formatTime(dashboard()?.situation?.estimatedRestorationAt) }}</small></span>
+                  </div>
+                </div>
+              </section>
+            }
+
+            <section class="citizen-lower-grid">
+              <article class="surface-card upcoming-card">
+                <header class="card-header">
+                  <div><span class="section-icon amber"><lucide-icon name="calendar-clock" [size]="18"></lucide-icon></span><div><h2>Prochaines opérations</h2><p>Programme publié par la STEG</p></div></div>
+                  <button type="button" (click)="selectNav('map')">Tout voir</button>
+                </header>
+                <div class="compact-list">
+                  @for (outage of dashboard()?.upcomingOutages ?? []; track outage.id) {
+                    <button type="button" (click)="selectNav('map')">
+                      <span class="date-tile"><strong>{{ formatTime(outage.startsAt) }}</strong><small>{{ outage.durationMinutes }} min</small></span>
+                      <span><strong>{{ outage.zoneLabel }}</strong><small>{{ outage.reason }} · {{ outage.affectedCustomers.toLocaleString('fr-FR') }} clients</small></span>
+                      <em [attr.data-tone]="statusTone(outage.status)">{{ statusLabel(outage.status) }}</em>
+                      <lucide-icon name="chevron-right" [size]="16"></lucide-icon>
+                    </button>
+                  } @empty {
+                    <div class="compact-empty"><lucide-icon name="calendar-check-2" [size]="23"></lucide-icon>Aucune coupure programmée.</div>
+                  }
+                </div>
+              </article>
+
+              <article class="surface-card reports-card">
+                <header class="card-header">
+                  <div><span class="section-icon violet"><lucide-icon name="messages-square" [size]="18"></lucide-icon></span><div><h2>Mes signalements</h2><p>Suivi lié à votre contrat</p></div></div>
+                  <button type="button" (click)="openReport()">Nouveau</button>
+                </header>
+                <div class="compact-list">
+                  @for (report of dashboard()?.myReports ?? []; track report.id) {
+                    <div class="report-list-row">
+                      <span class="report-type-icon" [attr.data-tone]="statusTone(report.severity)">
+                        <lucide-icon [name]="incidentIcon(report.type)" [size]="18"></lucide-icon>
+                      </span>
+                      <span><strong>{{ incidentTypeLabel(report.type) }}</strong><small>{{ report.reference }} · {{ relativeTime(report.createdAt) }}</small></span>
+                      <em [attr.data-tone]="statusTone(report.status)">{{ statusLabel(report.status) }}</em>
+                    </div>
+                  } @empty {
+                    <div class="compact-empty"><lucide-icon name="message-square-dashed" [size]="23"></lucide-icon>Aucun signalement lié à ce contrat.</div>
+                  }
+                </div>
+              </article>
+
+              <article class="surface-card contribution-card" [class.confirmed]="dashboard()?.situation?.powerRestoredConfirmedAt">
+                <span class="contribution-label">VOTRE CONTRIBUTION</span>
+                <div class="neighbors">
+                  <span><lucide-icon name="users" [size]="22"></lucide-icon></span>
+                  <div>
+                    <strong>
+                      {{ dashboard()?.situation?.communityConfirmations }}
+                      {{
+                        dashboard()?.situation?.communityConfirmations === 1
+                          ? 'voisin'
+                          : 'voisins'
+                      }}
+                    </strong>
+                    <small>
+                      {{
+                        dashboard()?.situation?.communityConfirmations === 1
+                          ? 'a contribué'
+                          : 'ont contribué'
+                      }}
+                      dans votre secteur
+                    </small>
+                  </div>
+                </div>
+                <h2>
+                  {{ dashboard()?.situation?.powerRestoredConfirmedAt
+                    ? 'Merci, le rétablissement est enregistré.'
+                    : 'Le courant est-il revenu chez vous ?' }}
+                </h2>
+                <p>Votre réponse aide le centre à vérifier le rétablissement réel de toute la zone.</p>
+                <div class="contribution-actions">
+                  <button
+                    class="restored-button"
+                    type="button"
+                    [disabled]="saving() || !!dashboard()?.situation?.powerRestoredConfirmedAt"
+                    (click)="confirmSituation('power_restored')"
+                  >
+                    <lucide-icon [name]="dashboard()?.situation?.powerRestoredConfirmedAt ? 'check' : 'zap'" [size]="17"></lucide-icon>
+                    {{ dashboard()?.situation?.powerRestoredConfirmedAt ? 'Rétablissement confirmé' : 'Oui, le courant est revenu' }}
+                  </button>
+                  <button class="still-out-button" type="button" [disabled]="saving()" (click)="confirmSituation('outage_confirmed')">
+                    Toujours coupé
+                  </button>
+                </div>
+              </article>
+            </section>
+          }
+
+          @case ('map') {
+            <section class="page-heading map-heading">
+              <div>
+                <span class="page-eyebrow"><i></i> CARTE PARTICIPATIVE & DONNÉES STEG</span>
+                <h1>Carte des coupures</h1>
+                <p>Consultez les opérations publiées et les incidents confirmés, avec une localisation respectueuse de la vie privée.</p>
+              </div>
+              <button class="primary-action" type="button" (click)="openReport()">
+                <lucide-icon name="message-square-plus" [size]="18"></lucide-icon>
+                Signaler un incident
+              </button>
+            </section>
+
+            <section class="map-kpis">
+              <article><span class="metric-icon red"><lucide-icon name="zap-off" [size]="19"></lucide-icon></span><div><small>En cours</small><strong>{{ activeMapOutageCount() }}</strong></div></article>
+              <article><span class="metric-icon amber"><lucide-icon name="calendar-clock" [size]="19"></lucide-icon></span><div><small>Programmées</small><strong>{{ scheduledMapOutageCount() }}</strong></div></article>
+              <article><span class="metric-icon violet"><lucide-icon name="message-square-warning" [size]="19"></lucide-icon></span><div><small>Signalements visibles</small><strong>{{ mapData()?.incidents?.length ?? 0 }}</strong></div></article>
+              <article><span class="metric-icon green"><lucide-icon name="map-pin-check" [size]="19"></lucide-icon></span><div><small>Votre secteur</small><strong>{{ dashboard()?.profile?.district }}</strong></div></article>
+            </section>
+
+            <section class="public-map-layout">
+              <aside class="map-sidebar surface-card">
+                <header>
+                  <div><span class="section-icon blue"><lucide-icon name="layers-3" [size]="18"></lucide-icon></span><div><h2>Affichage de la carte</h2><p>Choisissez les événements visibles</p></div></div>
+                </header>
+                <div class="map-filter-list">
+                  <button type="button" [class.active]="mapFilter() === 'all'" (click)="setMapFilter('all')">
+                    <span class="filter-icon all"><lucide-icon name="layout-dashboard" [size]="17"></lucide-icon></span>
+                    <span><strong>Vue complète</strong><small>Coupures et signalements</small></span>
+                    <em>{{ (mapData()?.outages?.length ?? 0) + (mapData()?.incidents?.length ?? 0) }}</em>
+                  </button>
+                  <button type="button" [class.active]="mapFilter() === 'active'" (click)="setMapFilter('active')">
+                    <span class="filter-icon active"><lucide-icon name="zap-off" [size]="17"></lucide-icon></span>
+                    <span><strong>Coupures en cours</strong><small>Confirmées par la STEG</small></span>
+                    <em>{{ activeMapOutageCount() }}</em>
+                  </button>
+                  <button type="button" [class.active]="mapFilter() === 'scheduled'" (click)="setMapFilter('scheduled')">
+                    <span class="filter-icon scheduled"><lucide-icon name="calendar-clock" [size]="17"></lucide-icon></span>
+                    <span><strong>Programmées</strong><small>Créneaux prévisionnels</small></span>
+                    <em>{{ scheduledMapOutageCount() }}</em>
+                  </button>
+                  <button type="button" [class.active]="mapFilter() === 'incidents'" (click)="setMapFilter('incidents')">
+                    <span class="filter-icon incident"><lucide-icon name="siren" [size]="17"></lucide-icon></span>
+                    <span><strong>Signalements</strong><small>Positions approximatives</small></span>
+                    <em>{{ mapData()?.incidents?.length ?? 0 }}</em>
+                  </button>
+                </div>
+                <div class="privacy-note">
+                  <lucide-icon name="shield-check" [size]="18"></lucide-icon>
+                  <div><strong>Vie privée protégée</strong><p>Les signalements et équipes ne sont jamais affichés avec une adresse personnelle exacte.</p></div>
+                </div>
+                <button class="location-action" type="button" (click)="refreshClientLocation()">
+                  <lucide-icon name="locate-fixed" [size]="17"></lucide-icon>
+                  Utiliser ma position
+                </button>
+              </aside>
+
+              <article class="public-map-card surface-card">
+                <div #outageMapCanvas class="public-map-canvas" aria-label="Carte des coupures et incidents STEG"></div>
+                @if (!mapReady()) {
+                  <div class="map-loading"><span></span>Chargement de la situation réseau…</div>
+                }
+                <div class="map-live-badge"><i></i> Actualisé {{ relativeTime(mapData()?.generatedAt) }}</div>
+                <div class="map-legend">
+                  <span><i class="home"></i>Votre adresse</span>
+                  <span><i class="outage"></i>Coupure STEG</span>
+                  <span><i class="incident"></i>Signalement</span>
+                </div>
+                <div class="map-controls public">
+                  <button type="button" (click)="zoomOutageMap(1)" aria-label="Zoom avant">+</button>
+                  <button type="button" (click)="zoomOutageMap(-1)" aria-label="Zoom arrière">−</button>
+                  <button type="button" (click)="centerOutageMap()" aria-label="Recentrer"><lucide-icon name="locate-fixed" [size]="15"></lucide-icon></button>
+                </div>
+
+                @if (selectedMapItem(); as selected) {
+                  <aside class="map-detail-panel">
+                    <button class="close-panel" type="button" (click)="selectedMapItem.set(null)" aria-label="Fermer">
+                      <lucide-icon name="x" [size]="17"></lucide-icon>
+                    </button>
+                    @if (selected.kind === 'outage') {
+                      <span class="detail-type outage"><lucide-icon name="zap-off" [size]="19"></lucide-icon> OPÉRATION STEG</span>
+                      <h2>{{ selected.value.zoneLabel }}</h2>
+                      <p>{{ selected.value.reason }}</p>
+                      <div class="detail-facts">
+                        <span><small>Statut</small><strong>{{ statusLabel(selected.value.status) }}</strong></span>
+                        <span><small>Début</small><strong>{{ formatDate(selected.value.startsAt) }}</strong></span>
+                        <span><small>Durée</small><strong>{{ selected.value.durationMinutes }} min</strong></span>
+                        <span><small>Impact</small><strong>{{ selected.value.affectedCustomers.toLocaleString('fr-FR') }} clients</strong></span>
+                      </div>
+                      <button type="button" (click)="openReport('outage')">Je constate aussi une coupure</button>
+                    } @else {
+                      <span class="detail-type incident"><lucide-icon [name]="incidentIcon(selected.value.type)" [size]="19"></lucide-icon> SIGNALEMENT COMMUNAUTAIRE</span>
+                      <h2>{{ incidentTypeLabel(selected.value.type) }}</h2>
+                      <p>{{ selected.value.zoneLabel }} · position approximative</p>
+                      <div class="detail-facts">
+              <span><small>Priorité</small><strong>{{ severityLabel(selected.value.severity) }}</strong></span>
+                        <span><small>Statut</small><strong>{{ statusLabel(selected.value.status) }}</strong></span>
+                        <span><small>Confirmations</small><strong>{{ selected.value.communityConfirmations }}</strong></span>
+                        <span><small>Mise à jour</small><strong>{{ relativeTime(selected.value.updatedAt) }}</strong></span>
+                      </div>
+                      <button type="button" (click)="openReport(selected.value.type)">Signaler le même problème</button>
+                    }
+                  </aside>
+                }
+              </article>
+            </section>
+
+            <section class="map-feed-grid">
+              <article class="surface-card">
+                <header class="card-header">
+                  <div><span class="section-icon amber"><lucide-icon name="zap-off" [size]="18"></lucide-icon></span><div><h2>Opérations publiées</h2><p>Informations validées par la STEG</p></div></div>
+                  <span class="record-count">{{ filteredMapOutages().length }}</span>
+                </header>
+                <div class="map-record-list">
+                  @for (outage of filteredMapOutages(); track outage.id) {
+                    <button type="button" (click)="selectMapOutage(outage)">
+                      <span class="record-marker outage"><lucide-icon name="zap-off" [size]="17"></lucide-icon></span>
+                      <span><strong>{{ outage.zoneLabel }}</strong><small>{{ outage.reason }} · {{ formatDate(outage.startsAt) }}</small></span>
+                      <em [attr.data-tone]="statusTone(outage.status)">{{ statusLabel(outage.status) }}</em>
+                      <lucide-icon name="chevron-right" [size]="16"></lucide-icon>
+                    </button>
+                  } @empty {
+                    <div class="compact-empty"><lucide-icon name="badge-check" [size]="23"></lucide-icon>Aucune coupure dans ce filtre.</div>
+                  }
+                </div>
+              </article>
+              <article class="surface-card">
+                <header class="card-header">
+                  <div><span class="section-icon red"><lucide-icon name="siren" [size]="18"></lucide-icon></span><div><h2>Signalements récents</h2><p>Données citoyennes en cours de vérification</p></div></div>
+                  <span class="record-count">{{ filteredMapIncidents().length }}</span>
+                </header>
+                <div class="map-record-list">
+                  @for (incident of filteredMapIncidents(); track incident.id) {
+                    <button type="button" (click)="selectMapIncident(incident)">
+                      <span class="record-marker incident"><lucide-icon [name]="incidentIcon(incident.type)" [size]="17"></lucide-icon></span>
+          <span>
+            <strong>{{ incidentTypeLabel(incident.type) }}</strong>
+            <small>
+              {{ incident.zoneLabel }} · {{ incident.communityConfirmations }}
+              {{ incident.communityConfirmations === 1 ? 'confirmation' : 'confirmations' }}
+            </small>
+          </span>
+          <em [attr.data-tone]="statusTone(incident.severity)">{{ severityLabel(incident.severity) }}</em>
+                      <lucide-icon name="chevron-right" [size]="16"></lucide-icon>
+                    </button>
+                  } @empty {
+                    <div class="compact-empty"><lucide-icon name="badge-check" [size]="23"></lucide-icon>Aucun signalement dans ce filtre.</div>
+                  }
+                </div>
+              </article>
+            </section>
+          }
+
+          @case ('safety') {
+            <section class="page-heading safety-heading">
+              <div>
+                <span class="page-eyebrow red"><i></i> PRÉVENTION & ASSISTANCE</span>
+                <h1>Aide & sécurité</h1>
+                <p>Les bons gestes face à un danger électrique et les contacts STEG officiels, accessibles immédiatement.</p>
+              </div>
+              <button class="secondary-emergency" type="button" (click)="openReport('fire')">
+                <lucide-icon name="siren" [size]="18"></lucide-icon>
+                Signaler un danger
+              </button>
+            </section>
+
+            <section class="emergency-hero">
+              <div class="emergency-copy">
+                <span><lucide-icon name="triangle-alert" [size]="22"></lucide-icon> DANGER ÉLECTRIQUE</span>
+                <h2>Ne vous approchez jamais d’un câble à terre ou d’un équipement en feu.</h2>
+                <p>Éloignez les personnes, restez dans une zone sûre puis contactez le service d’urgence STEG.</p>
+              </div>
+              <a [href]="'tel:' + safety()?.emergency?.phone" class="emergency-call">
+                <span><lucide-icon name="phone-call" [size]="21"></lucide-icon></span>
+                <div><small>{{ safety()?.emergency?.label }}</small><strong>{{ safety()?.emergency?.displayPhone }}</strong><em>Appel gratuit</em></div>
+                <lucide-icon name="arrow-up-right" [size]="18"></lucide-icon>
+              </a>
+            </section>
+
+            <section class="support-contacts">
+              <article class="contact-card emergency">
+                <span><lucide-icon name="phone-call" [size]="20"></lucide-icon></span>
+                <div><small>URGENCE 24/7</small><strong>{{ safety()?.emergency?.displayPhone }}</strong><p>{{ safety()?.emergency?.description }}</p></div>
+                <a [href]="'tel:' + safety()?.emergency?.phone">Appeler</a>
+              </article>
+              <article class="contact-card service">
+                <span><lucide-icon name="headphones" [size]="20"></lucide-icon></span>
+                <div><small>SERVICES & RÉCLAMATIONS</small><strong>{{ safety()?.service?.displayPhone }}</strong><p>{{ safety()?.service?.description }}</p></div>
+                <a [href]="'tel:' + safety()?.service?.phone">Appeler</a>
+              </article>
+              <article class="contact-card digital">
+                <span><lucide-icon name="message-square-plus" [size]="20"></lucide-icon></span>
+                <div><small>SIGNALEMENT NUMÉRIQUE</small><strong>Photos + GPS</strong><p>Transmettez les informations utiles sans vous exposer au danger.</p></div>
+                <button type="button" (click)="openReport('fire')">Signaler</button>
+              </article>
+            </section>
+
+            <section class="safety-section">
+              <header>
+                <div><span class="section-icon red"><lucide-icon name="shield-alert" [size]="19"></lucide-icon></span><div><h2>Que faire dans votre situation ?</h2><p>Sélectionnez un scénario pour ouvrir les gestes essentiels.</p></div></div>
+              </header>
+              <div class="safety-guide-grid">
+                @for (guide of safety()?.guides ?? []; track guide.id) {
+                  <button type="button" class="safety-guide-card" [attr.data-tone]="guide.tone" (click)="openGuide(guide)">
+                    <span><lucide-icon [name]="guide.icon" [size]="22"></lucide-icon></span>
+                    <em>{{ guide.tone === 'danger' ? 'URGENCE' : guide.tone === 'warning' ? 'PRUDENCE' : 'CONSEILS' }}</em>
+                    <h3>{{ guide.title }}</h3>
+                    <p>{{ guide.summary }}</p>
+                    <div>Voir les {{ guide.steps.length }} étapes <lucide-icon name="arrow-right" [size]="15"></lucide-icon></div>
+                  </button>
+                }
+              </div>
+            </section>
+
+            <section class="safety-two-columns">
+              <article class="before-report surface-card">
+                <header class="card-header">
+                  <div><span class="section-icon green"><lucide-icon name="clipboard-check" [size]="19"></lucide-icon></span><div><h2>Avant de signaler une panne</h2><p>Uniquement si la situation ne présente aucun danger</p></div></div>
+                </header>
+                <div class="checklist">
+                  <label><input type="checkbox" /><span><i><lucide-icon name="check" [size]="13"></lucide-icon></i><strong>Vérifier le disjoncteur principal</strong><small>Sans ouvrir ni démonter le compteur.</small></span></label>
+                  <label><input type="checkbox" /><span><i><lucide-icon name="check" [size]="13"></lucide-icon></i><strong>Demander à un voisin</strong><small>Pour savoir si la coupure dépasse votre logement.</small></span></label>
+                  <label><input type="checkbox" /><span><i><lucide-icon name="check" [size]="13"></lucide-icon></i><strong>Observer sans s’approcher</strong><small>Notez fumée, étincelles, bruit ou câble visible.</small></span></label>
+                </div>
+                <button type="button" (click)="openReport()">Créer un signalement guidé</button>
+              </article>
+
+              <article class="faq-card surface-card">
+                <header class="card-header">
+                  <div><span class="section-icon blue"><lucide-icon name="circle-help" [size]="19"></lucide-icon></span><div><h2>Questions fréquentes</h2><p>Transparence, confidentialité et suivi</p></div></div>
+                </header>
+                <div class="faq-list">
+                  @for (faq of safety()?.faqs ?? []; track faq.id) {
+                    <article [class.open]="expandedFaq() === faq.id">
+                      <button type="button" (click)="toggleFaq(faq.id)">
+                        <span>{{ faq.question }}</span>
+                        <lucide-icon [name]="expandedFaq() === faq.id ? 'minus' : 'plus'" [size]="17"></lucide-icon>
+                      </button>
+                      @if (expandedFaq() === faq.id) { <p>{{ faq.answer }}</p> }
+                    </article>
+                  }
+                </div>
+              </article>
+            </section>
+
+            <footer class="official-source">
+              <lucide-icon name="badge-check" [size]="18"></lucide-icon>
+              <span>Contacts et consignes basés sur les informations officielles de la STEG.</span>
+              <a [href]="safety()?.officialSource" target="_blank" rel="noopener">Consulter la source <lucide-icon name="external-link" [size]="14"></lucide-icon></a>
+            </footer>
+          }
+        }
+      }
+    </main>
+
+    <nav class="mobile-navigation" aria-label="Navigation mobile">
+      <button type="button" [class.active]="activeNav() === 'situation'" (click)="selectNav('situation')"><lucide-icon name="house" [size]="20"></lucide-icon><span>Situation</span></button>
+      <button type="button" [class.active]="activeNav() === 'map'" (click)="selectNav('map')"><lucide-icon name="map" [size]="20"></lucide-icon><span>Carte</span></button>
+      <button class="mobile-report-button" type="button" (click)="openReport()"><lucide-icon name="plus" [size]="22"></lucide-icon></button>
+      <button type="button" [class.active]="activeNav() === 'safety'" (click)="selectNav('safety')"><lucide-icon name="shield-check" [size]="20"></lucide-icon><span>Sécurité</span></button>
+      <button type="button" (click)="notificationsOpen.set(!notificationsOpen())"><lucide-icon name="bell" [size]="20"></lucide-icon><span>Alertes</span></button>
+    </nav>
+
+    @if (reportOpen()) {
+      <div class="modal-backdrop" (click)="closeReport()">
+        <section class="report-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="report-title">
+          <header>
+            <div>
+              <span><lucide-icon name="message-square-warning" [size]="21"></lucide-icon></span>
+              <div><small>SIGNALEMENT CITOYEN SÉCURISÉ</small><h2 id="report-title">Signaler un problème</h2></div>
+            </div>
+            <button type="button" (click)="closeReport()" aria-label="Fermer"><lucide-icon name="x" [size]="20"></lucide-icon></button>
+          </header>
+          <div class="report-progress"><i [style.width]="reportStep() === 1 ? '50%' : '100%'"></i></div>
+
+          <div class="report-body">
+            @if (reportStep() === 1) {
+              <div class="form-title"><span>ÉTAPE 1 SUR 2</span><h3>Que se passe-t-il ?</h3><p>Choisissez le problème qui correspond le mieux à votre situation.</p></div>
+              <div class="report-types">
+                @for (type of reportTypes; track type.id) {
+                  <button
+                    type="button"
+                    [class.selected]="selectedReport() === type.id"
+                    [class.urgent]="type.urgent"
+                    (click)="selectedReport.set(type.id)"
+                  >
+                    <span><lucide-icon [name]="type.icon" [size]="20"></lucide-icon></span>
+                    <div><strong>{{ type.label }}</strong><small>{{ type.hint }}</small></div>
+                    @if (type.urgent) { <em>URGENT</em> }
+                    <i>@if (selectedReport() === type.id) { <lucide-icon name="check" [size]="12"></lucide-icon> }</i>
+                  </button>
+                }
+              </div>
+              @if (selectedReport() === 'fire' || selectedReport() === 'wire') {
+                <div class="emergency-note">
+                  <lucide-icon name="phone-call" [size]="18"></lucide-icon>
+                  <div><strong>Danger immédiat : restez à distance</strong><small>Appelez l’urgence STEG au {{ safety()?.emergency?.displayPhone }} avant de prendre une photo.</small></div>
+                  <a [href]="'tel:' + safety()?.emergency?.phone">Appeler</a>
+                </div>
+              }
+            } @else {
+              <div class="form-title"><span>ÉTAPE 2 SUR 2</span><h3>Localisation et détails</h3><p>Votre position reste privée et sert uniquement à organiser l’intervention.</p></div>
+              <div class="location-confirm">
+                <span><lucide-icon name="map-pin" [size]="19"></lucide-icon></span>
+                <div>
+                  <small>{{ detectedLocation() ? 'POSITION GPS DÉTECTÉE' : 'ADRESSE DU CONTRAT' }}</small>
+                  <strong>{{ dashboard()?.profile?.address }}</strong>
+                  <p>{{ detectedLocation() ? 'Précision estimée : ' + detectedLocation()!.accuracy + ' mètres' : 'Vous pouvez améliorer la précision avec le GPS.' }}</p>
+                </div>
+                <button type="button" (click)="refreshClientLocation()">Actualiser</button>
+              </div>
+              <label class="description-field">
+                <span>Description <em>facultative</em></span>
+                <textarea
+                  [ngModel]="reportDescription()"
+                  (ngModelChange)="reportDescription.set($event)"
+                  placeholder="Ajoutez un détail utile pour l’équipe technique…"
+                  rows="4"
+                ></textarea>
+              </label>
+              <label class="photo-field">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  multiple
+                  (change)="onPhotoSelected($event)"
+                  [disabled]="photoUploading() || photoUrls().length >= 3"
+                />
+                <span><lucide-icon name="camera" [size]="22"></lucide-icon></span>
+                <div><strong>{{ photoUploading() ? 'Envoi sécurisé…' : 'Ajouter jusqu’à 3 photos' }}</strong><small>Uniquement depuis une zone sûre · JPEG, PNG ou WebP</small></div>
+                <em>{{ photoUrls().length }} / 3</em>
+              </label>
+              @if (photoUrls().length) {
+                <div class="photo-preview-list">
+                  @for (photo of photoUrls(); track photo) {
+                    <span><img [src]="photo" alt="Photo du signalement" /><button type="button" (click)="removePhoto(photo)" aria-label="Supprimer la photo"><lucide-icon name="x" [size]="13"></lucide-icon></button></span>
+                  }
+                </div>
+              }
+              <label class="privacy-check">
+                <input type="checkbox" [ngModel]="consentAccepted()" (ngModelChange)="consentAccepted.set($event)" />
+                <span>J’accepte que la STEG utilise ma position et mes photos uniquement pour traiter ce signalement.</span>
+              </label>
+            }
+          </div>
+
+          <footer>
+            <button class="secondary" type="button" (click)="reportStep() === 1 ? closeReport() : reportStep.set(1)">{{ reportStep() === 1 ? 'Annuler' : 'Retour' }}</button>
+            @if (reportStep() === 1) {
+              <button class="primary" type="button" (click)="nextReportStep()">Continuer <span>→</span></button>
+            } @else {
+              <button class="primary" type="button" (click)="submitReport()" [disabled]="saving() || photoUploading()">
+                <lucide-icon name="send" [size]="17"></lucide-icon>
+                {{ saving() ? 'Transmission…' : 'Envoyer le signalement' }}
+              </button>
+            }
+          </footer>
+          @if (operationError()) { <p class="operation-error">{{ operationError() }}</p> }
+        </section>
+      </div>
+    }
+
+    @if (selectedGuide(); as guide) {
+      <div class="modal-backdrop" (click)="selectedGuide.set(null)">
+        <section class="guide-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+          <header [attr.data-tone]="guide.tone">
+            <span><lucide-icon [name]="guide.icon" [size]="25"></lucide-icon></span>
+            <div><small>CONSIGNES DE SÉCURITÉ</small><h2>{{ guide.title }}</h2></div>
+            <button type="button" (click)="selectedGuide.set(null)" aria-label="Fermer"><lucide-icon name="x" [size]="19"></lucide-icon></button>
+          </header>
+          <p class="guide-summary">{{ guide.summary }}</p>
+          <ol>
+            @for (step of guide.steps; track step; let index = $index) {
+              <li><i>{{ index + 1 }}</i><span>{{ step }}</span></li>
+            }
+          </ol>
+          <div class="guide-warning"><lucide-icon name="triangle-alert" [size]="18"></lucide-icon>Ne prenez aucun risque pour documenter l’incident.</div>
+          <footer>
+            <button type="button" (click)="selectedGuide.set(null)">J’ai compris</button>
+            <button type="button" class="primary" (click)="selectedGuide.set(null); openReport(guide.id === 'voltage' ? 'voltage' : guide.id === 'home-outage' ? 'outage' : guide.id === 'fallen-wire' ? 'wire' : 'fire')">Créer un signalement</button>
+          </footer>
+        </section>
+      </div>
+    }
+
+    @if (toast()) {
+      <div class="toast">
+        <span><lucide-icon name="check" [size]="17"></lucide-icon></span>
+        <div><strong>{{ toastTitle() }}</strong><small>{{ toast() }}</small></div>
+        <button type="button" (click)="toast.set('')" aria-label="Fermer"><lucide-icon name="x" [size]="14"></lucide-icon></button>
+      </div>
+    }
+  </div>
+}

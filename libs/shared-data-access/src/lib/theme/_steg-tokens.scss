@@ -1,0 +1,102 @@
+// ---------------------------------------------------------------------------
+// STEGFlow — jetons de design partagés (palette, rayons, ombres, mouvement).
+// Inclure via `@include steg-palette;` dans `:root` (styles globaux d'une app)
+// ou dans `:host` (styles d'un composant de la bibliothèque partagée).
+// ---------------------------------------------------------------------------
+
+@mixin steg-palette {
+  // Bleu STEG — couleur porteuse de l'institution et des actions primaires.
+  --steg-blue-50: #eef7fc;
+  --steg-blue-100: #d6ebf7;
+  --steg-blue-200: #aed7ef;
+  --steg-blue-300: #78bce2;
+  --steg-blue-400: #3f9ed1;
+  --steg-blue-500: #1782bd;
+  --steg-blue-600: #0b6799;
+  --steg-blue-700: #0a537c;
+  --steg-blue-800: #0b4463;
+  --steg-blue-900: #0d3a53;
+  --steg-blue-950: #06253a;
+
+  // Rouge signal — urgences, incidents dangereux, accent de marque.
+  --steg-red-50: #fef2f3;
+  --steg-red-100: #fde0e3;
+  --steg-red-200: #fbc4c9;
+  --steg-red-400: #f26a74;
+  --steg-red-500: #e11d2e;
+  --steg-red-600: #c11527;
+  --steg-red-700: #9c1220;
+
+  // Ambre — coupures programmées, avertissements, états d'attente.
+  --steg-amber-50: #fff8ec;
+  --steg-amber-100: #fdedd0;
+  --steg-amber-500: #e08a0b;
+  --steg-amber-600: #b96f06;
+
+  // Vert — rétablissement, conformité, validation.
+  --steg-green-50: #eefaf4;
+  --steg-green-100: #d3f3e5;
+  --steg-green-500: #0f9d6e;
+  --steg-green-600: #0a7d57;
+
+  // Neutres ardoise — fonds, bordures et typographie.
+  --steg-neutral-0: #ffffff;
+  --steg-neutral-25: #fafcfd;
+  --steg-neutral-50: #f4f7fa;
+  --steg-neutral-100: #eaf0f4;
+  --steg-neutral-200: #dbe4eb;
+  --steg-neutral-300: #c2ced8;
+  --steg-neutral-400: #94a6b3;
+  --steg-neutral-500: #6c8190;
+  --steg-neutral-600: #4f6675;
+  --steg-neutral-700: #384f5e;
+  --steg-neutral-800: #223a48;
+  --steg-neutral-900: #142a36;
+
+  // --- Jetons sémantiques -------------------------------------------------
+  --steg-primary: var(--steg-blue-600);
+  --steg-primary-strong: var(--steg-blue-800);
+  --steg-primary-soft: var(--steg-blue-50);
+  --steg-on-primary: var(--steg-neutral-0);
+
+  --steg-danger: var(--steg-red-500);
+  --steg-danger-soft: var(--steg-red-50);
+  --steg-warning: var(--steg-amber-500);
+  --steg-warning-soft: var(--steg-amber-50);
+  --steg-success: var(--steg-green-500);
+  --steg-success-soft: var(--steg-green-50);
+
+  --steg-surface: var(--steg-neutral-0);
+  --steg-surface-raised: var(--steg-neutral-25);
+  --steg-surface-sunken: var(--steg-neutral-50);
+  --steg-border: var(--steg-neutral-200);
+  --steg-border-strong: var(--steg-neutral-300);
+
+  --steg-text: var(--steg-neutral-900);
+  --steg-text-soft: var(--steg-neutral-600);
+  --steg-text-muted: var(--steg-neutral-400);
+
+  --steg-focus-ring: 0 0 0 3px rgba(23, 130, 189, 0.22);
+  --steg-danger-ring: 0 0 0 3px rgba(225, 29, 46, 0.18);
+
+  // Accent de portail — surchargé par [data-portal] sur l'écran d'auth.
+  --steg-accent: var(--steg-blue-500);
+  --steg-accent-soft: var(--steg-blue-50);
+
+  // --- Rayons, ombres, mouvement -----------------------------------------
+  --steg-radius-xs: 8px;
+  --steg-radius-sm: 10px;
+  --steg-radius-md: 14px;
+  --steg-radius-lg: 20px;
+  --steg-radius-pill: 999px;
+
+  --steg-shadow-xs: 0 1px 2px rgba(10, 42, 61, 0.06);
+  --steg-shadow-sm: 0 4px 12px rgba(10, 42, 61, 0.07);
+  --steg-shadow-md: 0 12px 28px rgba(10, 42, 61, 0.1);
+  --steg-shadow-lg: 0 26px 60px rgba(6, 37, 58, 0.16);
+
+  --steg-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --steg-duration: 180ms;
+
+  --steg-font: 'Manrope Variable', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+}

@@ -1,0 +1,57 @@
+/* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
+/* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "paths": {
+      "shared-data-access": [
+        "./libs/shared-data-access/src/public-api.ts",
+        "./dist/shared-data-access"
+      ]
+    },
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "preserve"
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/admin/tsconfig.app.json"
+    },
+    {
+      "path": "./apps/admin/tsconfig.spec.json"
+    },
+    {
+      "path": "./apps/citizen/tsconfig.app.json"
+    },
+    {
+      "path": "./apps/citizen/tsconfig.spec.json"
+    },
+    {
+      "path": "./apps/maintenance/tsconfig.app.json"
+    },
+    {
+      "path": "./apps/maintenance/tsconfig.spec.json"
+    },
+    {
+      "path": "./libs/shared-data-access/tsconfig.lib.json"
+    },
+    {
+      "path": "./libs/shared-data-access/tsconfig.spec.json"
+    }
+  ]
+}
