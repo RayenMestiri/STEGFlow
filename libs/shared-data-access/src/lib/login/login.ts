@@ -454,20 +454,26 @@ export class Login {
     this.map = await createStegMap(element, center, existing ? 15 : 11.5);
     this.map.once('load', () => this.map?.resize());
 
-    if (existing) void this.attachMarker(existing);
-    // Le premier clic pose l'épingle ; `createStegPinMarker` gère les suivants.
-    else {
-      this.map.once('click', (event) =>
-        this.applyCoordinates([event.lngLat.lng, event.lngLat.lat], false),
-      );
+    if (existing) {
+      void this.attachMarker(existing);
     }
+
+    // Listener permanent pour poser ou déplacer l'épingle au clic
+    this.map.on('click', (event) => {
+      this.applyCoordinates([event.lngLat.lng, event.lngLat.lat], false);
+    });
   }
 
   private applyCoordinates(coordinates: StegCoordinates, recenter: boolean): void {
     this.coordinates.set(coordinates);
-    if (this.marker) this.marker.setLngLat(coordinates);
-    else void this.attachMarker(coordinates);
-    if (recenter) this.map?.easeTo({ center: coordinates, zoom: 15, duration: 600 });
+    if (this.marker) {
+      this.marker.setLngLat(coordinates);
+    } else {
+      void this.attachMarker(coordinates);
+    }
+    if (recenter) {
+      this.map?.easeTo({ center: coordinates, zoom: 15, duration: 600 });
+    }
 
     // Pré-remplit le gouvernorat tant que l'utilisateur ne l'a pas choisi.
     if (!this.locationForm.controls.governorate.value) {
@@ -476,10 +482,11 @@ export class Login {
   }
 
   private async attachMarker(coordinates: StegCoordinates): Promise<void> {
-    if (!this.map) return;
-    this.marker = await createStegPinMarker(this.map, coordinates, (next) =>
+    if (!this.map || this.marker) return;
+    const marker = await createStegPinMarker(this.map, coordinates, (next) =>
       this.applyCoordinates(next, false),
     );
+    this.marker = marker;
   }
 
   private authorizePortal(): void {

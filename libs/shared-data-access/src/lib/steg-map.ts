@@ -295,22 +295,23 @@ export async function createStegPinMarker(
   element.setAttribute('role', 'img');
   element.setAttribute('aria-label', 'Position sélectionnée');
   element.style.cssText = [
-    'width:34px',
-    'height:34px',
+    'width:38px',
+    'height:38px',
     'display:grid',
     'place-items:center',
     'color:#fff',
     `background:${MARKER_COLORS.home}`,
-    'border:4px solid rgba(255,255,255,.96)',
-    'border-radius:50% 50% 50% 8px',
-    'box-shadow:0 10px 24px rgba(7,42,62,.32)',
+    'border:4px solid #ffffff',
+    'border-radius:50% 50% 50% 4px',
+    'box-shadow:0 10px 25px rgba(7,42,62,.45)',
     'transform:rotate(-45deg)',
     'cursor:grab',
+    'z-index:999',
   ].join(';');
 
   const glyph = document.createElement('span');
   glyph.textContent = MARKER_SYMBOLS.home;
-  glyph.style.cssText = 'transform:rotate(45deg);font:800 14px "Manrope Variable",sans-serif';
+  glyph.style.cssText = 'transform:rotate(45deg);font:800 16px "Manrope Variable",sans-serif;pointer-events:none';
   element.append(glyph);
 
   const marker = new MapMarker({ element, draggable: true, anchor: 'bottom' })
@@ -320,11 +321,6 @@ export async function createStegPinMarker(
   marker.on('dragend', () => {
     const { lng, lat } = marker.getLngLat();
     onMove([lng, lat]);
-  });
-  map.on('click', (event) => {
-    const next: StegCoordinates = [event.lngLat.lng, event.lngLat.lat];
-    marker.setLngLat(next);
-    onMove(next);
   });
 
   return marker;
