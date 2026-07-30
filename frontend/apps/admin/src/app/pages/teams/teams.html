@@ -1,0 +1,77 @@
+<section class="page-heading">
+  <div>
+    <span class="eyebrow"><i></i> CENTRE DES OPÉRATIONS · TEMPS RÉEL</span>
+    <h1>Équipes terrain</h1>
+    <p>Disponibilités, compétences et missions en temps réel</p>
+  </div>
+  <div class="heading-sync"><span><i></i> Synchronisé</span></div>
+</section>
+
+@if (pageError()) {
+  <div class="page-alert" role="alert"><lucide-icon name="triangle-alert" [size]="19"></lucide-icon><span>{{ pageError() }}</span><button type="button" (click)="loadData()">Réessayer</button></div>
+}
+
+<section class="metric-strip">
+  <article><span class="metric-icon success"><lucide-icon name="circle-check" [size]="19"></lucide-icon></span><div><small>Disponibles</small><strong>{{ dashboard()?.teams?.available ?? 0 }}</strong></div></article>
+  <article><span class="metric-icon info"><lucide-icon name="navigation" [size]="19"></lucide-icon></span><div><small>En mission</small><strong>{{ dashboard()?.teams?.onMission ?? 0 }}</strong></div></article>
+  <article><span class="metric-icon warning"><lucide-icon name="undo-2" [size]="19"></lucide-icon></span><div><small>Retour base</small><strong>{{ teams().length - (dashboard()?.teams?.available ?? 0) - (dashboard()?.teams?.onMission ?? 0) }}</strong></div></article>
+  <article><span class="metric-icon neutral"><lucide-icon name="radio" [size]="19"></lucide-icon></span><div><small>Connectées</small><strong>{{ dashboard()?.teams?.connected ?? 0 }}/{{ dashboard()?.teams?.total ?? 0 }}</strong></div></article>
+</section>
+
+<section class="workspace-card">
+  <header class="workspace-toolbar">
+    <div class="segmented">
+      @for (filter of [{ value: 'all', label: 'Toutes' },{ value: 'available', label: 'Disponibles' },{ value: 'on_mission', label: 'En mission' },{ value: 'returning', label: 'Retour base' }]; track filter.value) {
+        <button type="button" [class.active]="teamFilter() === filter.value" (click)="teamFilter.set(filter.value)">{{ filter.label }}</button>
+      }
+    </div>
+    <label class="global-search">
+      <lucide-icon name="search" [size]="17"></lucide-icon>
+      <input type="search" placeholder="Rechercher…" [ngModel]="globalQuery()" (ngModelChange)="globalQuery.set($event)" />
+    </label>
+    <span class="toolbar-note live"><i></i>Positions exactes · Supervision interne</span>
+  </header>
+  <div class="team-board">
+    @for (team of filteredTeams(); track team.id) {
+      <button class="field-team-card" type="button" (click)="selectedTeam.set(team)">
+        <span class="team-card-head">
+          <span class="large-team-avatar">{{ team.code.replace('Équipe ', '') }}</span>
+          <span><strong>{{ team.code }}</strong><small>{{ team.name }}</small></span>
+          <em class="status-pill" [attr.data-tone]="statusTone(team.status)"><i></i>{{ statusLabel(team.status) }}</em>
+        </span>
+        <div class="team-person"><lucide-icon name="user-round" [size]="16"></lucide-icon><span><strong>{{ team.leadName }}</strong><small>{{ team.members }} agents · {{ team.vehicle }}</small></span></div>
+        <div class="skill-list">@for (skill of team.skills; track skill) { <span>{{ skill }}</span> }</div>
+        <span class="team-card-foot"><span><lucide-icon name="map-pin" [size]="13"></lucide-icon>{{ team.base }}</span><span>{{ relativeTime(team.lastSeenAt) }}</span></span>
+      </button>
+    } @empty {
+      <div class="empty-state wide"><lucide-icon name="users" [size]="31"></lucide-icon><strong>Aucune équipe dans ce filtre</strong></div>
+    }
+  </div>
+</section>
+
+@if (selectedTeam(); as team) {
+  <aside class="detail-drawer">
+    <header><div><span class="drawer-kicker">ÉQUIPE TERRAIN</span><h2>{{ team.code }}</h2><p>{{ team.name }}</p></div><button type="button" (click)="selectedTeam.set(null)" aria-label="Fermer"><lucide-icon name="x" [size]="19"></lucide-icon></button></header>
+    <div class="drawer-scroll">
+      <div class="drawer-status"><em class="status-pill" [attr.data-tone]="statusTone(team.status)"><i></i>{{ statusLabel(team.status) }}</em><small>GPS {{ relativeTime(team.lastSeenAt) }}</small></div>
+      <section class="team-profile"><div class="large-team-avatar">{{ team.code.replace('Équipe ', '') }}</div><div><strong>{{ team.leadName }}</strong><span>{{ team.phone }}</span><small>{{ team.members }} agents · Véhicule {{ team.vehicle }}</small></div></section>
+      <section class="drawer-section"><h3>Compétences habilitées</h3><div class="skill-list">@for (skill of team.skills; track skill) { <span>{{ skill }}</span> }</div></section>
+      <section class="drawer-section"><h3>Mission actuelle</h3>
+        @if (team.currentMission; as mission) {
+          <div class="mission-summary"><span class="mission-icon"><lucide-icon name="navigation" [size]="20"></lucide-icon></span><div><strong>{{ mission.reference }}</strong><small>{{ statusLabel(mission.status) }} · ETA {{ mission.etaMinutes ?? '—' }} min</small></div><em>LIVE</em></div>
+        } @else { <div class="photo-empty"><lucide-icon name="coffee" [size]="20"></lucide-icon>Équipe prête à être affectée</div> }
+      </section>
+      <section class="drawer-section"><h3>Modifier la disponibilité</h3>
+        <div class="status-actions">
+          <button type="button" [class.active]="team.status === 'available'" (click)="updateTeamStatus(team, 'available')">Disponible</button>
+          <button type="button" [class.active]="team.status === 'returning'" (click)="updateTeamStatus(team, 'returning')">Retour base</button>
+          <button type="button" [class.active]="team.status === 'offline'" (click)="updateTeamStatus(team, 'offline')">Hors ligne</button>
+        </div>
+      </section>
+    </div>
+  </aside>
+}
+
+@if (toast()) {
+  <div class="toast"><span><lucide-icon name="check" [size]="17"></lucide-icon></span><div><strong>{{ toastTitle() }}</strong><small>{{ toast() }}</small></div><button type="button" (click)="toast.set('')" aria-label="Fermer"><lucide-icon name="x" [size]="14"></lucide-icon></button></div>
+}

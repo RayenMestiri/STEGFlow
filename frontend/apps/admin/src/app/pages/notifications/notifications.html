@@ -1,0 +1,71 @@
+<section class="page-heading">
+  <div>
+    <span class="eyebrow"><i></i> DIFFUSION MULTICANALE</span>
+    <h1>Notifications</h1>
+    <p>Piloter les campagnes multicanales et leurs relances</p>
+  </div>
+  <div class="heading-sync">
+    <button type="button" (click)="openComposer()"><lucide-icon name="send" [size]="18"></lucide-icon>Nouvelle campagne</button>
+  </div>
+</section>
+
+@if (pageError()) {
+  <div class="page-alert" role="alert"><lucide-icon name="triangle-alert" [size]="19"></lucide-icon><span>{{ pageError() }}</span><button type="button" (click)="loadData()">Réessayer</button></div>
+}
+
+<section class="notification-hero">
+  <div><span class="eyebrow light"><i></i> DIFFUSION MULTICANALE</span><h2>{{ dashboard()?.notifications?.deliveryRate ?? 0 }}% de livraison réussie</h2><p>Push, SMS et e-mail avec déduplication et relances automatiques.</p></div>
+  <div class="hero-stats">
+    <span><strong>{{ (dashboard()?.notifications?.recipients ?? 0).toLocaleString('fr-FR') }}</strong><small>destinataires</small></span>
+    <span><strong>{{ (dashboard()?.notifications?.delivered ?? 0).toLocaleString('fr-FR') }}</strong><small>livrés</small></span>
+    <span><strong>{{ dashboard()?.notifications?.failed ?? 0 }}</strong><small>échecs</small></span>
+  </div>
+</section>
+
+<section class="workspace-card">
+  <header class="workspace-toolbar">
+    <div class="segmented">
+      @for (filter of [{ value: 'all', label: 'Toutes' },{ value: 'delivered', label: 'Livrées' },{ value: 'partial', label: 'Partielles' },{ value: 'failed', label: 'Échecs' }]; track filter.value) {
+        <button type="button" [class.active]="notificationFilter() === filter.value" (click)="notificationFilter.set(filter.value)">{{ filter.label }}</button>
+      }
+    </div>
+    <span class="toolbar-note"><lucide-icon name="shield-check" [size]="14"></lucide-icon>Déduplication active</span>
+  </header>
+  <div class="campaign-list">
+    @for (campaign of filteredCampaigns(); track campaign.id) {
+      <article class="campaign-row">
+        <span class="campaign-icon"><lucide-icon name="send" [size]="18"></lucide-icon></span>
+        <div class="campaign-main"><span><strong>{{ campaign.title }}</strong><em class="status-pill" [attr.data-tone]="statusTone(campaign.status)"><i></i>{{ statusLabel(campaign.status) }}</em></span><small>{{ campaign.reference }} · {{ campaign.audienceLabel }}</small><p>{{ campaign.body }}</p></div>
+        <div class="campaign-channels">@for (channel of campaign.channels; track channel) { <span>{{ channel }}</span> }</div>
+        <div class="campaign-progress"><span><strong>{{ completionRate(campaign) }}%</strong><small>{{ campaign.delivered }}/{{ campaign.recipients }}</small></span><i><b [style.width.%]="completionRate(campaign)"></b></i></div>
+        <div class="campaign-action"><small>{{ formatDate(campaign.sentAt ?? campaign.createdAt) }}</small>@if (campaign.failed > 0) { <button type="button" (click)="retryNotification(campaign)" [disabled]="saving()"><lucide-icon name="rotate-ccw" [size]="14"></lucide-icon>Relancer {{ campaign.failed }}</button> }</div>
+      </article>
+    } @empty {
+      <div class="empty-state"><lucide-icon name="send" [size]="30"></lucide-icon><strong>Aucune campagne</strong><p>Créez la première diffusion multicanale.</p></div>
+    }
+  </div>
+</section>
+
+@if (composerOpen()) {
+  <div class="modal-backdrop" (click)="composerOpen.set(false)">
+    <section class="modal-card notification-composer" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <header><div><span class="modal-icon violet"><lucide-icon name="send" [size]="21"></lucide-icon></span><div><small>DIFFUSION MULTICANALE</small><h2>Nouvelle campagne</h2></div></div><button type="button" (click)="composerOpen.set(false)" aria-label="Fermer"><lucide-icon name="x" [size]="20"></lucide-icon></button></header>
+      <div class="modal-body">
+        <label class="field"><span>Titre</span><input [ngModel]="notificationTitle()" (ngModelChange)="notificationTitle.set($event)" /></label>
+        <label class="field"><span>Message</span><textarea [ngModel]="notificationBody()" (ngModelChange)="notificationBody.set($event)" rows="4"></textarea></label>
+        <div class="field-row"><label class="field"><span>Audience</span><input [ngModel]="notificationAudience()" (ngModelChange)="notificationAudience.set($event)" /></label><label class="field"><span>Destinataires</span><input type="number" [ngModel]="notificationRecipients()" (ngModelChange)="notificationRecipients.set(+$event)" /></label></div>
+        <div class="composer-channels">
+          <label [class.active]="notificationPush()"><input type="checkbox" [ngModel]="notificationPush()" (ngModelChange)="notificationPush.set($event)" /><lucide-icon name="bell" [size]="18"></lucide-icon><span>Push</span></label>
+          <label [class.active]="notificationSms()"><input type="checkbox" [ngModel]="notificationSms()" (ngModelChange)="notificationSms.set($event)" /><lucide-icon name="message-square-text" [size]="18"></lucide-icon><span>SMS</span></label>
+          <label [class.active]="notificationEmail()"><input type="checkbox" [ngModel]="notificationEmail()" (ngModelChange)="notificationEmail.set($event)" /><lucide-icon name="mail" [size]="18"></lucide-icon><span>E-mail</span></label>
+        </div>
+      </div>
+      <footer><button type="button" class="secondary-button" (click)="composerOpen.set(false)">Annuler</button><button type="button" class="primary-button" (click)="sendNotification()" [disabled]="saving()"><lucide-icon name="send" [size]="16"></lucide-icon>{{ saving() ? 'Mise en file…' : 'Envoyer la campagne' }}</button></footer>
+      @if (operationError()) { <p class="operation-error">{{ operationError() }}</p> }
+    </section>
+  </div>
+}
+
+@if (toast()) {
+  <div class="toast"><span><lucide-icon name="check" [size]="17"></lucide-icon></span><div><strong>{{ toastTitle() }}</strong><small>{{ toast() }}</small></div><button type="button" (click)="toast.set('')" aria-label="Fermer"><lucide-icon name="x" [size]="14"></lucide-icon></button></div>
+}

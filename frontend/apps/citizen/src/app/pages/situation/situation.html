@@ -1,0 +1,231 @@
+@if (loading() && !dashboard()) {
+  <section class="skeleton-grid" aria-label="Chargement">
+    @for (item of [1, 2, 3, 4]; track item) { <span></span> }
+  </section>
+} @else if (dashboard(); as data) {
+  <div class="situation-hero" [attr.data-tone]="situationTone()">
+    <div class="hero-inner">
+      <div class="hero-text">
+        <span class="eyebrow">VOTRE SITUATION EN DIRECT</span>
+        <h1>{{ situationLabel(data.situation.state) }}</h1>
+        <p>{{ data.profile.address }}</p>
+      </div>
+      <div class="hero-actions">
+        <button class="report-btn" type="button" (click)="openReport()">
+          <lucide-icon name="message-square-plus" [size]="18"></lucide-icon>
+          Signaler un problème
+        </button>
+        <button class="share-btn" type="button" aria-label="Partager">
+          <lucide-icon name="share-2" [size]="18"></lucide-icon>
+        </button>
+      </div>
+    </div>
+
+    <div class="status-ribbon">
+      <article>
+        <div><small>Intervention en cours</small><strong>{{ data.mission ? data.mission.teamCode : '—' }}</strong></div>
+        <em>{{ data.mission ? 'En direct' : 'Aucune' }}</em>
+      </article>
+      <article>
+        <div><small>Clients concernés</small><strong>{{ data.currentOutage ? data.currentOutage.affectedCustomers.toLocaleString('fr-FR') : '—' }}</strong></div>
+        <em>{{ data.situation.communityConfirmations }} confirmations</em>
+      </article>
+      <article>
+        <div><small>Rétablissement estimé</small><strong>{{ formatTime(data.situation.estimatedRestorationAt) }}</strong></div>
+        <em>Estimation dynamique</em>
+      </article>
+      <article>
+        <div><small>Mes signalements</small><strong>{{ data.myReports?.length ?? 0 }}</strong></div>
+        <em>Historique disponible</em>
+      </article>
+    </div>
+  </div>
+
+  <section class="situation-grid">
+    @if (data.mission; as mission) {
+      <article class="tracking-card surface-card">
+        <header class="card-header">
+          <div><span class="section-icon blue"><lucide-icon name="navigation" [size]="18"></lucide-icon></span><div><h2>Suivi de l'équipe</h2><p>{{ mission.reference }} · Position protégée</p></div></div>
+          <span class="live-pill"><i></i> EN DIRECT</span>
+        </header>
+        <div class="tracking-map">
+          <div #trackingMapCanvas class="map-canvas" aria-label="Carte de suivi de l'équipe STEG"></div>
+          @if (!trackingMapReady()) { <div class="map-loading"><span></span>Connexion à la carte…</div> }
+          <div class="map-privacy"><lucide-icon name="shield-check" [size]="14"></lucide-icon> Position arrondie et légèrement différée</div>
+          <div class="map-controls">
+            <button type="button" (click)="zoomTrackingMap(1)" aria-label="Zoom avant">+</button>
+            <button type="button" (click)="zoomTrackingMap(-1)" aria-label="Zoom arrière">−</button>
+            <button type="button" (click)="centerTrackingMap()" aria-label="Recentrer"><lucide-icon name="locate-fixed" [size]="15"></lucide-icon></button>
+          </div>
+        </div>
+        <footer class="tracking-footer">
+          <div class="eta-block"><span><lucide-icon name="navigation" [size]="19"></lucide-icon></span><div><small>ARRIVÉE ESTIMÉE</small><strong>{{ mission.etaMinutes ?? '—' }} min</strong></div></div>
+          <div><small>Équipe</small><strong>{{ mission.teamCode }}</strong></div>
+          <div><small>Étape actuelle</small><strong>{{ statusLabel(mission.status) }}</strong></div>
+          <div><small>Position</small><strong>{{ relativeTime(mission.lastPositionAt) }}</strong></div>
+        </footer>
+      </article>
+    } @else {
+      <article class="tracking-card scheduled-operation-card surface-card">
+        <header class="card-header">
+          <div>
+            <span [class]="'section-icon ' + (data.currentOutage ? 'amber' : 'green')">
+              <lucide-icon [name]="data.currentOutage ? 'calendar-clock' : 'badge-check'" [size]="18"></lucide-icon>
+            </span>
+            <div><h2>{{ data.currentOutage ? "Préparation de l'opération" : 'Aucune intervention active' }}</h2><p>{{ data.currentOutage ? 'Aucune position avant affectation' : 'Votre secteur est stable' }}</p></div>
+          </div>
+          <span class="scheduled-pill">{{ data.currentOutage ? 'PROGRAMMÉE' : 'RÉSEAU STABLE' }}</span>
+        </header>
+        <div class="scheduled-operation-body">
+          <span class="scheduled-operation-icon"><lucide-icon [name]="data.currentOutage ? 'calendar-check-2' : 'shield-check'" [size]="30"></lucide-icon></span>
+          <div class="scheduled-operation-copy">
+            <span>{{ data.currentOutage ? 'INFORMATION VÉRIFIÉE PAR LA STEG' : 'SURVEILLANCE DU RÉSEAU ACTIVE' }}</span>
+            <h3>{{ data.currentOutage ? "Aucune équipe n'est encore affectée." : "Aucune équipe affectée à votre adresse." }}</h3>
+          </div>
+          @if (data.currentOutage; as outage) {
+            <dl>
+              <div><dt>Début prévu</dt><dd>{{ formatDate(outage.startsAt) }}</dd></div>
+              <div><dt>Durée estimée</dt><dd>{{ outage.durationMinutes ?? '—' }} min</dd></div>
+              <div><dt>Zone</dt><dd>{{ data.situation?.zoneLabel }}</dd></div>
+            </dl>
+            <button type="button" (click)="goToMap()">Voir sur la carte <lucide-icon name="arrow-right" [size]="16"></lucide-icon></button>
+          } @else {
+            <button type="button" (click)="openReport()">Signaler un problème réel <lucide-icon name="arrow-right" [size]="16"></lucide-icon></button>
+          }
+        </div>
+      </article>
+    }
+
+    <aside class="situation-side">
+      <article class="outage-state-card surface-card">
+        <header>
+          <span><lucide-icon name="zap-off" [size]="22"></lucide-icon></span>
+          <div><small>ÉTAT DE VOTRE ADRESSE</small><h2>{{ situationLabel(data.situation.state) }}</h2></div>
+          <em [attr.data-tone]="statusTone(data.currentOutage?.status ?? (data.mission ? 'in_progress' : 'normal'))">{{ statusLabel(data.currentOutage?.status ?? (data.mission ? 'in_progress' : 'normal')) }}</em>
+        </header>
+        <div class="cause-panel"><small>INFORMATION TECHNIQUE</small><strong>{{ data.situation?.cause }}</strong></div>
+        <div class="restoration-row"><span><lucide-icon name="clock-arrow-up" [size]="18"></lucide-icon></span><div><small>Rétablissement estimé</small><strong>{{ formatDate(data.situation?.estimatedRestorationAt) }}</strong></div></div>
+        <button class="link-button" type="button" (click)="goToMap()">Voir la zone sur la carte <lucide-icon name="arrow-up-right" [size]="15"></lucide-icon></button>
+      </article>
+
+      <article class="safety-mini-card">
+        <span><lucide-icon name="shield-alert" [size]="21"></lucide-icon></span>
+        <div><strong>Un câble ou un coffret est dangereux ?</strong><p>Restez à distance et ouvrez immédiatement les consignes adaptées.</p><button type="button" (click)="goToSafety()">Ouvrir Aide &amp; sécurité <span>→</span></button></div>
+      </article>
+    </aside>
+  </section>
+
+  @if ((data.timeline?.length ?? 0) > 0) {
+    <section class="timeline-card surface-card">
+      <header class="card-header">
+        <div><span class="section-icon green"><lucide-icon name="list-checks" [size]="18"></lucide-icon></span><div><h2>Progression de l'intervention</h2><p>Chaque étape est horodatée</p></div></div>
+        <span class="progress-caption">{{ completedTimelineSteps() }} / {{ data.timeline?.length ?? 8 }} étapes</span>
+      </header>
+      <div class="operation-timeline">
+        @for (step of data.timeline ?? []; track step.key; let index = $index) {
+          <div class="timeline-step" [attr.data-state]="step.state">
+            <i>@if (step.state === 'completed') { <lucide-icon name="check" [size]="13"></lucide-icon> } @else if (step.state === 'current') { <lucide-icon name="radio" [size]="12"></lucide-icon> } @else { {{ index + 1 }} }</i>
+            <span><strong>{{ step.label }}</strong><small>{{ step.at ? formatTime(step.at) : 'À venir' }}</small></span>
+          </div>
+          @if (index < (data.timeline?.length ?? 0) - 1) { <b [attr.data-state]="step.state"></b> }
+        }
+      </div>
+    </section>
+  }
+
+  <section class="citizen-lower-grid">
+    <article class="surface-card upcoming-card">
+      <header class="card-header"><div><span class="section-icon amber"><lucide-icon name="calendar-clock" [size]="18"></lucide-icon></span><div><h2>Prochaines opérations</h2><p>Programme publié par la STEG</p></div></div><button type="button" (click)="goToMap()">Tout voir</button></header>
+      <div class="compact-list">
+        @for (outage of data.upcomingOutages ?? []; track outage.id) {
+          <button type="button" (click)="goToMap()">
+            <span class="date-tile"><strong>{{ formatTime(outage.startsAt) }}</strong><small>{{ outage.durationMinutes }} min</small></span>
+            <span><strong>{{ outage.zoneLabel }}</strong><small>{{ outage.reason }} · {{ outage.affectedCustomers.toLocaleString('fr-FR') }} clients</small></span>
+            <em [attr.data-tone]="statusTone(outage.status)">{{ statusLabel(outage.status) }}</em>
+            <lucide-icon name="chevron-right" [size]="16"></lucide-icon>
+          </button>
+        } @empty {
+          <div class="compact-empty"><lucide-icon name="calendar-check-2" [size]="23"></lucide-icon>Aucune coupure programmée.</div>
+        }
+      </div>
+    </article>
+
+    <article class="surface-card reports-card">
+      <header class="card-header"><div><span class="section-icon violet"><lucide-icon name="messages-square" [size]="18"></lucide-icon></span><div><h2>Mes signalements</h2><p>Suivi lié à votre contrat</p></div></div><button type="button" (click)="openReport()">Nouveau</button></header>
+      <div class="compact-list">
+        @for (report of data.myReports ?? []; track report.id) {
+          <div class="report-list-row">
+            <span class="report-type-icon" [attr.data-tone]="statusTone(report.severity)"><lucide-icon [name]="incidentIcon(report.type)" [size]="18"></lucide-icon></span>
+            <span><strong>{{ incidentTypeLabel(report.type) }}</strong><small>{{ report.reference }} · {{ relativeTime(report.createdAt) }}</small></span>
+            <em [attr.data-tone]="statusTone(report.status)">{{ statusLabel(report.status) }}</em>
+          </div>
+        } @empty {
+          <div class="compact-empty"><lucide-icon name="message-square-dashed" [size]="23"></lucide-icon>Aucun signalement lié à ce contrat.</div>
+        }
+      </div>
+    </article>
+
+    <article class="surface-card contribution-card" [class.confirmed]="data.situation?.powerRestoredConfirmedAt">
+      <span class="contribution-label">VOTRE CONTRIBUTION</span>
+      <div class="neighbors"><span><lucide-icon name="users" [size]="22"></lucide-icon></span><div><strong>{{ data.situation?.communityConfirmations }} {{ data.situation?.communityConfirmations === 1 ? 'voisin' : 'voisins' }}</strong><small>{{ data.situation?.communityConfirmations === 1 ? 'a contribué' : 'ont contribué' }} dans votre secteur</small></div></div>
+      <h2>{{ data.situation?.powerRestoredConfirmedAt ? 'Merci, le rétablissement est enregistré.' : 'Le courant est-il revenu chez vous ?' }}</h2>
+      <p>Votre réponse aide le centre à vérifier le rétablissement réel de toute la zone.</p>
+      <div class="contribution-actions">
+        <button class="restored-button" type="button" [disabled]="saving() || !!data.situation?.powerRestoredConfirmedAt" (click)="confirmSituation('power_restored')">
+          <lucide-icon [name]="data.situation?.powerRestoredConfirmedAt ? 'check' : 'zap'" [size]="17"></lucide-icon>
+          {{ data.situation?.powerRestoredConfirmedAt ? 'Rétablissement confirmé' : 'Oui, le courant est revenu' }}
+        </button>
+        <button class="still-out-button" type="button" [disabled]="saving()" (click)="confirmSituation('outage_confirmed')">Toujours coupé</button>
+      </div>
+    </article>
+  </section>
+}
+
+@if (reportOpen()) {
+  <div class="modal-backdrop" (click)="closeReport()">
+    <section class="modal-card report-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <header>
+        <div><span class="modal-icon"><lucide-icon name="message-square-warning" [size]="21"></lucide-icon></span><div><small>SIGNALEMENT CITOYEN</small><h2>{{ reportStep() === 1 ? 'Quel problème observez-vous ?' : 'Détails et photos' }}</h2></div></div>
+        <button type="button" (click)="closeReport()" aria-label="Fermer"><lucide-icon name="x" [size]="20"></lucide-icon></button>
+      </header>
+      <div class="modal-body">
+        @if (reportStep() === 1) {
+          <div class="report-types">
+            @for (type of reportTypes; track type.id) {
+              <button class="report-type" type="button" [class.selected]="selectedReport() === type.id" [class.urgent]="type.urgent" (click)="selectedReport.set(type.id)">
+                <span><lucide-icon [name]="type.icon" [size]="22"></lucide-icon></span>
+                <div><strong>{{ type.label }}</strong><small>{{ type.hint }}</small></div>
+                @if (type.urgent) { <em>Urgent</em> }
+              </button>
+            }
+          </div>
+        } @else {
+          <div class="report-detail">
+            <label class="field"><span>Description facultative</span><textarea [ngModel]="reportDescription()" (ngModelChange)="reportDescription.set($event)" rows="3" placeholder="Décrivez la situation en quelques mots…"></textarea></label>
+            <div class="photo-upload-area">
+              <label class="photo-trigger" for="photo-input"><lucide-icon name="camera" [size]="22"></lucide-icon><span>Ajouter des photos</span></label>
+              <input id="photo-input" type="file" accept="image/*" multiple (change)="onPhotoSelected($event)" />
+              @if (photoUploading()) { <span class="uploading">Envoi en cours…</span> }
+              <div class="photo-preview">@for (photo of photoUrls(); track photo) { <span class="preview-thumb" (click)="removePhoto(photo)"><img [src]="photo" alt="" /><i><lucide-icon name="x" [size]="14"></lucide-icon></i></span> }</div>
+            </div>
+            <label class="check-field"><input type="checkbox" [ngModel]="consentAccepted()" (ngModelChange)="consentAccepted.set($event)" /><span><strong>J'accepte que ma position et les photos soient transmises à la STEG.</strong><small>Données utilisées uniquement pour cette intervention.</small></span></label>
+          </div>
+        }
+      </div>
+      <footer>
+        @if (reportStep() === 1) {
+          <button type="button" class="secondary-button" (click)="closeReport()">Annuler</button>
+          <button type="button" class="primary-button" (click)="nextReportStep()">Continuer <span>→</span></button>
+        } @else {
+          <button type="button" class="secondary-button" (click)="reportStep.set(1)">Retour</button>
+          <button type="button" class="primary-button" (click)="submitReport()" [disabled]="saving()"><lucide-icon name="send" [size]="17"></lucide-icon>{{ saving() ? 'Envoi…' : 'Transmettre le signalement' }}</button>
+        }
+      </footer>
+      @if (operationError()) { <p class="operation-error">{{ operationError() }}</p> }
+    </section>
+  </div>
+}
+
+@if (toast()) {
+  <div class="toast"><span><lucide-icon name="check" [size]="17"></lucide-icon></span><div><strong>{{ toastTitle() }}</strong><small>{{ toast() }}</small></div><button type="button" (click)="toast.set('')" aria-label="Fermer"><lucide-icon name="x" [size]="14"></lucide-icon></button></div>
+}

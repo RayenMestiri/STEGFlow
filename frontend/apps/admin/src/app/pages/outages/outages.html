@@ -1,0 +1,134 @@
+<section class="page-heading">
+  <div>
+    <span class="eyebrow"><i></i> CENTRE DES OPÉRATIONS · TEMPS RÉEL</span>
+    <h1>Coupures</h1>
+    <p>Planifier, valider et suivre le cycle de chaque interruption</p>
+  </div>
+  <div class="heading-sync">
+    <span><i></i> Synchronisé</span>
+    <button class="primary-button" type="button" (click)="openCreate()">
+      <lucide-icon name="plus" [size]="17"></lucide-icon><span>Nouvelle coupure</span>
+    </button>
+  </div>
+</section>
+
+@if (pageError()) {
+  <div class="page-alert" role="alert"><lucide-icon name="triangle-alert" [size]="19"></lucide-icon><span>{{ pageError() }}</span><button type="button" (click)="loadData()">Réessayer</button></div>
+}
+
+<section class="metric-strip">
+  <article><span class="metric-icon info"><lucide-icon name="calendar-clock" [size]="19"></lucide-icon></span><div><small>Programmées</small><strong>{{ dashboard()?.outages?.scheduled ?? 0 }}</strong></div></article>
+  <article><span class="metric-icon danger"><lucide-icon name="zap-off" [size]="19"></lucide-icon></span><div><small>En cours</small><strong>{{ dashboard()?.outages?.active ?? 0 }}</strong></div></article>
+  <article><span class="metric-icon warning"><lucide-icon name="shield-alert" [size]="19"></lucide-icon></span><div><small>À valider</small><strong>{{ dashboard()?.outages?.pendingApproval ?? 0 }}</strong></div></article>
+  <article><span class="metric-icon success"><lucide-icon name="users" [size]="19"></lucide-icon></span><div><small>Clients concernés</small><strong>{{ (dashboard()?.outages?.affectedCustomers ?? 0).toLocaleString('fr-FR') }}</strong></div></article>
+</section>
+
+<section class="workspace-card">
+  <header class="workspace-toolbar">
+    <div class="segmented">
+      @for (filter of [{ value: 'all', label: 'Toutes' },{ value: 'pending_approval', label: 'À valider' },{ value: 'scheduled', label: 'Programmées' },{ value: 'active', label: 'En cours' },{ value: 'closed', label: 'Clôturées' }]; track filter.value) {
+        <button type="button" [class.active]="outageFilter() === filter.value" (click)="outageFilter.set(filter.value)">{{ filter.label }}</button>
+      }
+    </div>
+    <label class="global-search">
+      <lucide-icon name="search" [size]="17"></lucide-icon>
+      <input type="search" placeholder="Rechercher…" [ngModel]="globalQuery()" (ngModelChange)="globalQuery.set($event)" />
+    </label>
+  </header>
+
+  <div class="data-table outage-table">
+    <div class="table-head"><span>Référence / zone</span><span>Planification</span><span>Impact</span><span>Statut</span><span></span></div>
+    @for (outage of filteredOutages(); track outage.id) {
+      <button class="table-row" type="button" (click)="selectedOutage.set(outage)">
+        <span class="identity-cell"><i class="row-icon amber"><lucide-icon name="zap-off" [size]="18"></lucide-icon></i><span><strong>{{ outage.zoneLabel }}</strong><small>{{ outage.reference }} · {{ outage.reason }}</small></span></span>
+        <span><strong>{{ formatDate(outage.startsAt) }}</strong><small>{{ outage.durationMinutes }} minutes</small></span>
+        <span><strong>{{ outage.affectedCustomers.toLocaleString('fr-FR') }} clients</strong><small>{{ outage.zoneId }}</small></span>
+        <span><em class="status-pill" [attr.data-tone]="statusTone(outage.status)"><i></i>{{ statusLabel(outage.status) }}</em></span>
+        <span class="row-action"><lucide-icon name="chevron-right" [size]="17"></lucide-icon></span>
+      </button>
+    } @empty {
+      <div class="empty-state"><lucide-icon name="search-x" [size]="30"></lucide-icon><strong>Aucune coupure trouvée</strong><p>Modifiez le filtre ou la recherche.</p></div>
+    }
+  </div>
+</section>
+
+@if (selectedOutage(); as outage) {
+  <aside class="detail-drawer">
+    <header>
+      <div><span class="drawer-kicker">DOSSIER COUPURE</span><h2>{{ outage.reference }}</h2><p>{{ outage.zoneLabel }} · {{ outage.reason }}</p></div>
+      <button type="button" (click)="selectedOutage.set(null)" aria-label="Fermer"><lucide-icon name="x" [size]="19"></lucide-icon></button>
+    </header>
+    <div class="drawer-scroll">
+      <div class="drawer-status"><em class="status-pill" [attr.data-tone]="statusTone(outage.status)"><i></i>{{ statusLabel(outage.status) }}</em><small>Mis à jour {{ relativeTime(outage.updatedAt) }}</small></div>
+      <section class="detail-grid">
+        <article><small>Début prévu</small><strong>{{ formatDate(outage.startsAt) }}</strong></article>
+        <article><small>Durée estimée</small><strong>{{ outage.durationMinutes }} min</strong></article>
+        <article><small>Clients affectés</small><strong>{{ outage.affectedCustomers.toLocaleString('fr-FR') }}</strong></article>
+        <article><small>Zone réseau</small><strong>{{ outage.zoneId }}</strong></article>
+      </section>
+      <section class="drawer-section"><h3>Actions autorisées</h3>
+        <div class="drawer-actions">
+          @if (outage.status === 'pending_approval') { <button class="primary-button" type="button" (click)="updateOutageStatus(outage, 'scheduled')" [disabled]="saving()">Valider la programmation</button> }
+          @if (outage.status === 'scheduled') { <button class="primary-button" type="button" (click)="publishExistingOutage(outage)" [disabled]="saving()">Publier et notifier</button> }
+          @if (outage.status === 'notified') { <button class="primary-button" type="button" (click)="updateOutageStatus(outage, 'active')" [disabled]="saving()">Confirmer le début</button> }
+          @if (outage.status === 'active') { <button class="primary-button" type="button" (click)="updateOutageStatus(outage, 'restored')" [disabled]="saving()">Confirmer le rétablissement</button> }
+          @if (outage.status === 'restored') { <button class="secondary-button" type="button" (click)="updateOutageStatus(outage, 'closed')" [disabled]="saving()">Clôturer le dossier</button> }
+        </div>
+      </section>
+    </div>
+  </aside>
+}
+
+@if (createModalOpen()) {
+  <div class="modal-backdrop" (click)="closeCreate()">
+    <section class="modal-card outage-wizard" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <header>
+        <div><span class="modal-icon"><lucide-icon name="calendar-clock" [size]="21"></lucide-icon></span><div><small>NOUVELLE OPÉRATION</small><h2>Programmer une coupure</h2></div></div>
+        <button type="button" (click)="closeCreate()" aria-label="Fermer"><lucide-icon name="x" [size]="20"></lucide-icon></button>
+      </header>
+      <div class="stepper five">
+        @for (step of [1, 2, 3, 4, 5]; track step) {
+          <span [class.active]="outageStep() >= step" [class.current]="outageStep() === step">
+            <i>@if (outageStep() > step) { <lucide-icon name="check" [size]="13"></lucide-icon> } @else { {{ step }} }</i>
+            <em>{{ step === 1 ? 'Zone' : step === 2 ? 'Planification' : step === 3 ? 'Impact' : step === 4 ? 'Notification' : 'Validation' }}</em>
+          </span>
+          @if (step < 5) { <b [class.active]="outageStep() > step"></b> }
+        }
+      </div>
+      <div class="modal-body">
+        @if (outageStep() === 1) {
+          <div class="form-heading"><h3>Identifier la zone électrique</h3><p>Le rattachement réseau garantit un ciblage précis.</p></div>
+          <div class="field-row">
+            <label class="field"><span>Zone électrique</span><select [ngModel]="selectedZone()" (ngModelChange)="selectedZone.set($event)"><option>El Menzah 6</option><option>Le Bardo</option><option>La Marsa</option><option>Cité Ennasr 2</option></select></label>
+            <label class="field"><span>Départ / poste</span><select [ngModel]="selectedFeeder()" (ngModelChange)="selectedFeeder.set($event)"><option>Départ A3-07</option><option>Départ B1-03</option><option>Poste HTA Marsa</option></select></label>
+          </div>
+        } @else if (outageStep() === 2) {
+          <div class="form-heading"><h3>Planifier l'intervention</h3><p>Définissez la cause, le début, la durée et la priorité.</p></div>
+          <label class="field"><span>Motif</span><select [ngModel]="outageReason()" (ngModelChange)="outageReason.set($event)"><option>Maintenance préventive</option><option>Délestage réseau</option><option>Réparation urgente</option><option>Surcharge réseau</option></select></label>
+          <div class="field-row"><label class="field"><span>Date et heure</span><input type="datetime-local" [ngModel]="outageStart()" (ngModelChange)="outageStart.set($event)" /></label><label class="field"><span>Durée estimée</span><select [ngModel]="outageDuration()" (ngModelChange)="outageDuration.set($event)"><option value="45">45 minutes</option><option value="90">1 h 30</option><option value="120">2 heures</option><option value="180">3 heures</option></select></label></div>
+        } @else if (outageStep() === 3) {
+          <div class="form-heading"><h3>Vérifier l'impact client</h3></div>
+          <div class="impact-summary"><article><span><lucide-icon name="users" [size]="19"></lucide-icon></span><div><strong>1 842</strong><small>clients estimés</small></div></article></div>
+        } @else if (outageStep() === 4) {
+          <div class="form-heading"><h3>Configurer la notification</h3></div>
+          <label class="channel-choice" [class.active]="notifyPush()"><input type="checkbox" [ngModel]="notifyPush()" (ngModelChange)="notifyPush.set($event)" /><span><lucide-icon name="bell" [size]="19"></lucide-icon></span><div><strong>Push mobile</strong></div><lucide-icon name="check" [size]="17"></lucide-icon></label>
+          <label class="channel-choice" [class.active]="notifySms()"><input type="checkbox" [ngModel]="notifySms()" (ngModelChange)="notifySms.set($event)" /><span><lucide-icon name="message-square-text" [size]="19"></lucide-icon></span><div><strong>SMS de secours</strong></div><lucide-icon name="check" [size]="17"></lucide-icon></label>
+        } @else {
+          <div class="form-heading"><h3>Valider l'opération</h3></div>
+          <div class="validation-recap"><span><small>Zone</small><strong>{{ selectedZone() }} · {{ selectedFeeder() }}</strong></span><span><small>Motif</small><strong>{{ outageReason() }}</strong></span></div>
+          <label class="check-field"><input type="checkbox" [ngModel]="approvalRequired()" (ngModelChange)="approvalRequired.set($event)" /><span><strong>Validation superviseur requise</strong></span></label>
+        }
+      </div>
+      <footer>
+        <button type="button" class="secondary-button" (click)="outageStep() === 1 ? closeCreate() : previousStep()">{{ outageStep() === 1 ? 'Annuler' : 'Retour' }}</button>
+        @if (outageStep() < 5) { <button type="button" class="primary-button modal-next" (click)="nextStep()">Continuer <span>→</span></button> }
+        @else { <button type="button" class="primary-button modal-next" (click)="createOutage()" [disabled]="saving()"><lucide-icon name="send" [size]="17"></lucide-icon>{{ saving() ? 'Enregistrement…' : approvalRequired() ? 'Soumettre à validation' : 'Publier et notifier' }}</button> }
+      </footer>
+      @if (operationError()) { <p class="operation-error">{{ operationError() }}</p> }
+    </section>
+  </div>
+}
+
+@if (toast()) {
+  <div class="toast"><span><lucide-icon name="check" [size]="17"></lucide-icon></span><div><strong>{{ toastTitle() }}</strong><small>{{ toast() }}</small></div><button type="button" (click)="toast.set('')" aria-label="Fermer"><lucide-icon name="x" [size]="14"></lucide-icon></button></div>
+}

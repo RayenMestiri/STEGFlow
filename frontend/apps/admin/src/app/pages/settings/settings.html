@@ -1,0 +1,41 @@
+<section class="settings-layout">
+  <aside class="settings-nav">
+    <span class="settings-shield"><lucide-icon name="settings-2" [size]="25"></lucide-icon></span>
+    <h2>Configuration STEGFlow</h2>
+    <p>Les changements sont enregistrés avec votre identité dans le journal d'audit.</p>
+    <div>@for (group of settingsGroups(); track group) { <span><lucide-icon name="chevron-right" [size]="14"></lucide-icon>{{ group }}</span> }</div>
+    <button type="button" (click)="saveSettings()" [disabled]="saving()"><lucide-icon name="save" [size]="16"></lucide-icon>{{ saving() ? 'Enregistrement…' : 'Enregistrer les paramètres' }}</button>
+  </aside>
+
+  <div class="settings-groups">
+    @for (group of settingsGroups(); track group) {
+      <section class="settings-card">
+        <header><span><lucide-icon [name]="groupIcon(group)" [size]="19"></lucide-icon></span><div><h2>{{ group }}</h2><p>Paramètres {{ group.toLowerCase() }} du centre des opérations.</p></div></header>
+        <div>
+          @for (setting of settings(); track setting.id) {
+            @if (setting.group === group) {
+              <label class="setting-row">
+                <span><strong>{{ setting.label }}</strong><small>{{ setting.description }}</small><em>Clé : {{ setting.key }} · {{ setting.updatedBy }}</em></span>
+                @if (isBooleanSetting(setting)) {
+                  <input class="switch-input" type="checkbox" [ngModel]="settingValue(setting.key)" (ngModelChange)="setSettingValue(setting.key, $event)" />
+                } @else if (isNumberSetting(setting)) {
+                  <span class="number-control"><input type="number" [ngModel]="settingValue(setting.key)" (ngModelChange)="setSettingValue(setting.key, +$event)" /><em>{{ setting.key.includes('days') ? 'jours' : 'sec' }}</em></span>
+                } @else {
+                  <select [ngModel]="settingValue(setting.key)" (ngModelChange)="setSettingValue(setting.key, $event)"><option value="fr">Français</option><option value="ar">العربية</option><option value="fr-ar">Français + Arabe</option></select>
+                }
+              </label>
+            }
+          }
+        </div>
+      </section>
+    }
+  </div>
+</section>
+
+@if (pageError()) {
+  <div class="page-alert" role="alert"><lucide-icon name="triangle-alert" [size]="19"></lucide-icon><span>{{ pageError() }}</span><button type="button" (click)="loadData()">Réessayer</button></div>
+}
+
+@if (toast()) {
+  <div class="toast"><span><lucide-icon name="check" [size]="17"></lucide-icon></span><div><strong>{{ toastTitle() }}</strong><small>{{ toast() }}</small></div><button type="button" (click)="toast.set('')" aria-label="Fermer"><lucide-icon name="x" [size]="14"></lucide-icon></button></div>
+}

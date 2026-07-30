@@ -1,0 +1,64 @@
+<div class="report-layout">
+  <section class="report-form surface-card">
+    <header class="card-header">
+      <div><span class="section-icon"><lucide-icon name="clipboard-pen" [size]="18"></lucide-icon></span><div><h1>Rapport d'intervention</h1><p>{{ dashboard()?.activeMission?.reference ?? 'Aucune mission active' }}</p></div></div>
+      <div class="completion-ring" [attr.data-completion]="reportCompletion() >= 100 ? 'done' : ''"><span>{{ reportCompletion() }}%</span></div>
+    </header>
+
+    @if (pageError()) { <div class="page-alert"><lucide-icon name="triangle-alert" [size]="17"></lucide-icon><span>{{ pageError() }}</span></div> }
+    @if (!dashboard()?.activeMission) {
+      <div class="no-mission-notice"><lucide-icon name="info" [size]="20"></lucide-icon><p>Aucune mission active. Le rapport sera disponible lors de votre prochaine mission.</p></div>
+    } @else {
+      <div class="form-sections">
+        <section class="form-section">
+          <h2><lucide-icon name="search" [size]="16"></lucide-icon> Diagnostic technique</h2>
+          <label class="field"><span>Cause principale identifiée <em>*</em></span><textarea [ngModel]="diagnosis()" (ngModelChange)="diagnosis.set($event)" rows="3" placeholder="Ex : Court-circuit sur câble BT souterrain, phase R ouverte…"></textarea></label>
+          <label class="field"><span>Durée estimée de réparation</span>
+            <select [ngModel]="estimate()" (ngModelChange)="estimate.set($event)">
+              <option value="15">15 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option>
+              <option value="60">1 heure</option><option value="90">1 h 30</option><option value="120">2 heures</option>
+              <option value="180">3 heures</option><option value="240">4 heures</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="form-section">
+          <h2><lucide-icon name="package-check" [size]="16"></lucide-icon> Ressources requises</h2>
+          <div class="resource-chips">
+            @for (resource of availableResources; track resource) {
+              <button class="resource-chip" type="button" [class.active]="requestedResources().includes(resource)" (click)="toggleResource(resource)">{{ resource }}</button>
+            }
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2><lucide-icon name="camera" [size]="16"></lucide-icon> Photos de terrain</h2>
+          <div class="photo-area">
+            <label class="photo-trigger" for="report-photo-input"><lucide-icon name="image-plus" [size]="22"></lucide-icon><span>Ajouter des photos</span></label>
+            <input id="report-photo-input" type="file" accept="image/*" multiple (change)="onPhotoSelected($event)" />
+            @if (photoUploading()) { <span class="uploading">Envoi en cours…</span> }
+            <div class="photo-preview">@for (photo of photoUrls(); track photo) { <span class="preview-thumb" (click)="removePhoto(photo)"><img [src]="photo" alt="" /><i><lucide-icon name="x" [size]="14"></lucide-icon></i></span> }</div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2><lucide-icon name="sticky-note" [size]="16"></lucide-icon> Observations complémentaires</h2>
+          <label class="field"><span>Notes libres</span><textarea [ngModel]="note()" (ngModelChange)="note.set($event)" rows="3" placeholder="Travaux supplémentaires, anomalies constatées, coordination nécessaire…"></textarea></label>
+        </section>
+      </div>
+
+      @if (operationError()) { <p class="operation-error">{{ operationError() }}</p> }
+
+      <footer class="form-footer">
+        <button class="primary-button" type="button" (click)="saveReport()" [disabled]="saving() || !dashboard()?.activeMission">
+          <lucide-icon name="send" [size]="17"></lucide-icon>
+          {{ saving() ? 'Enregistrement…' : 'Transmettre le rapport' }}
+        </button>
+      </footer>
+    }
+  </section>
+</div>
+
+@if (toast()) {
+  <div class="toast"><span><lucide-icon name="check" [size]="17"></lucide-icon></span><div><strong>{{ toastTitle() }}</strong><small>{{ toast() }}</small></div><button type="button" (click)="toast.set('')" aria-label="Fermer"><lucide-icon name="x" [size]="14"></lucide-icon></button></div>
+}

@@ -1,0 +1,128 @@
+@if (pageError()) {
+  <div class="page-alert" role="alert"><lucide-icon name="triangle-alert" [size]="19"></lucide-icon><span>{{ pageError() }}</span><button type="button" (click)="loadData()">Réessayer</button></div>
+}
+
+@if (loading() && !dashboard()) {
+  <section class="skeleton-grid"><@for (item of [1, 2, 3]; track item) { <span></span> }</section>
+} @else if (dashboard()?.activeMission; as mission) {
+  <section class="mission-hero" [attr.data-status]="mission.status">
+    <div class="hero-inner">
+      <div class="mission-id">
+        <span class="mission-badge"><lucide-icon name="route" [size]="18"></lucide-icon></span>
+        <div><small>MISSION ACTIVE</small><h1>{{ mission.reference }}</h1><p>{{ mission.incident?.address }}</p></div>
+      </div>
+      <div class="mission-actions">
+        <button class="sos-trigger" type="button" (click)="sosOpen.set(true)"><lucide-icon name="siren" [size]="18"></lucide-icon>SOS</button>
+        <button class="gps-btn" type="button" [class.active]="gpsActive()" (click)="toggleGps()">
+          <lucide-icon name="locate-fixed" [size]="17"></lucide-icon>
+          {{ gpsActive() ? (gpsSyncing() ? 'GPS sync…' : 'GPS actif') : 'GPS désactivé' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="mission-progress-bar">
+      <div class="progress-fill" [style.width.%]="missionProgress()"></div>
+      <span class="progress-label">{{ missionProgress() }}% · {{ statusLabel(mission.status) }}</span>
+    </div>
+  </section>
+
+  <section class="mission-content">
+    <div class="mission-main">
+      <article class="mission-status-card surface-card">
+        <div class="status-stepper">
+          @for (status of statuses; track status.value; let index = $index) {
+            <div class="step" [class.done]="missionProgress() > (index / statuses.length * 100)" [class.current]="mission.status === status.value">
+              <span><lucide-icon [name]="status.icon" [size]="16"></lucide-icon></span>
+              <small>{{ status.short }}</small>
+            </div>
+            @if (index < statuses.length - 1) { <div class="step-line" [class.done]="missionProgress() > (index / statuses.length * 100)"></div> }
+          }
+        </div>
+        @if (mission.status !== 'resolved') {
+          <button class="advance-button" type="button" (click)="advanceMissionStatus()" [disabled]="syncing()">
+            <lucide-icon [name]="nextStatus(mission.status)?.icon ?? 'check'" [size]="17"></lucide-icon>
+            {{ syncing() ? 'Synchronisation…' : (nextStatus(mission.status)?.action ?? 'Mission terminée') }}
+          </button>
+        } @else {
+          <div class="resolved-state"><lucide-icon name="circle-check-big" [size]="24"></lucide-icon><strong>Mission clôturée</strong></div>
+        }
+      </article>
+
+      <article class="surface-card mission-detail-card">
+        <header class="card-header">
+          <div><span class="section-icon"><lucide-icon name="clipboard-check" [size]="18"></lucide-icon></span><div><h2>Détails de la mission</h2><p>{{ mission.reference }}</p></div></div>
+          <button type="button" (click)="detailsOpen.update(v => !v)"><lucide-icon [name]="detailsOpen() ? 'chevron-down' : 'chevron-right'" [size]="17"></lucide-icon></button>
+        </header>
+        @if (detailsOpen()) {
+          <div class="mission-detail-body">
+            <dl>
+              <div><dt>Type d'incident</dt><dd>{{ mission.incident?.type }}</dd></div>
+              <div><dt>Adresse</dt><dd>{{ mission.incident?.address }}</dd></div>
+              <div><dt>Priorité</dt><dd>{{ mission.incident?.severity }}</dd></div>
+              <div><dt>Début de mission</dt><dd>{{ formatDate(mission.acceptedAt ?? mission.createdAt) }}</dd></div>
+              <div><dt>Temps écoulé</dt><dd>{{ elapsedTime(mission.acceptedAt ?? mission.createdAt) }}</dd></div>
+            </dl>
+            @if (mission.reportNotes) { <div class="tech-notes"><strong>Notes techniques</strong><p>{{ mission.reportNotes }}</p></div> }
+          </div>
+        }
+      </article>
+
+      <article class="surface-card safety-checks-card">
+        <header class="card-header"><div><span class="section-icon warning"><lucide-icon name="shield-check" [size]="18"></lucide-icon></span><div><h2>Checklist sécurité</h2><p>{{ safetyCheckCount() }}/4 vérifications</p></div></div></header>
+        <div class="checklist">
+          <label><input type="checkbox" [ngModel]="safetyChecks().ppe" (ngModelChange)="safetyChecks.update(s => ({...s, ppe: $event}))" /><span>EPI portés (casque, gants isolants, chaussures)</span></label>
+          <label><input type="checkbox" [ngModel]="safetyChecks().voltage" (ngModelChange)="safetyChecks.update(s => ({...s, voltage: $event}))" /><span>Tension contrôlée et consignation effectuée</span></label>
+          <label><input type="checkbox" [ngModel]="safetyChecks().perimeter" (ngModelChange)="safetyChecks.update(s => ({...s, perimeter: $event}))" /><span>Périmètre de sécurité établi</span></label>
+          <label><input type="checkbox" [ngModel]="safetyChecks().tools" (ngModelChange)="safetyChecks.update(s => ({...s, tools: $event}))" /><span>Outils vérifiés et outillage conforme</span></label>
+        </div>
+      </article>
+
+      <div class="mission-quick-actions">
+        <button type="button" (click)="goToReport()"><lucide-icon name="clipboard-pen" [size]="18"></lucide-icon>Rédiger le rapport</button>
+      </div>
+    </div>
+
+    <aside class="mission-map-col">
+      @if (mission.incident?.location) {
+        <article class="surface-card map-card">
+          <div class="map-canvas-wrap">
+            <div #missionMapCanvas class="map-canvas" aria-label="Carte de la mission"></div>
+            @if (!mapReady()) { <div class="map-loading"><span></span>Chargement…</div> }
+          </div>
+          <footer class="map-footer"><lucide-icon name="map-pin-check" [size]="15"></lucide-icon>{{ mission.incident?.address }}</footer>
+        </article>
+      }
+    </aside>
+  </section>
+} @else {
+  <section class="no-mission-state">
+    <div class="no-mission-icon"><lucide-icon name="badge-check" [size]="36"></lucide-icon></div>
+    <h1>Aucune mission active</h1>
+    <p>Vous serez notifié dès qu'une nouvelle intervention vous sera affectée.</p>
+    <div class="team-info">
+      <div class="team-avatar-lg">{{ dashboard()?.team?.code?.replace('Équipe ', '') }}</div>
+      <div><strong>{{ dashboard()?.team?.leadName }}</strong><small>{{ dashboard()?.team?.code }}</small></div>
+    </div>
+  </section>
+}
+
+@if (sosOpen()) {
+  <div class="modal-backdrop" (click)="sosOpen.set(false)">
+    <section class="modal-card sos-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <header><div><span class="modal-icon danger"><lucide-icon name="siren" [size]="21"></lucide-icon></span><div><small>URGENCE</small><h2>Envoyer une alerte</h2></div></div><button type="button" (click)="sosOpen.set(false)" aria-label="Fermer"><lucide-icon name="x" [size]="20"></lucide-icon></button></header>
+      <div class="modal-body">
+        <div class="sos-types">
+          <button class="sos-type" type="button" (click)="sendSos('accident')"><lucide-icon name="ambulance" [size]="22"></lucide-icon><span>Accident corporel</span></button>
+          <button class="sos-type" type="button" (click)="sendSos('electrical')"><lucide-icon name="zap" [size]="22"></lucide-icon><span>Danger électrique</span></button>
+          <button class="sos-type" type="button" (click)="sendSos('security')"><lucide-icon name="shield-alert" [size]="22"></lucide-icon><span>Menace sécurité</span></button>
+        </div>
+        <label class="field"><span>Note (facultatif)</span><textarea [ngModel]="emergencyNote()" (ngModelChange)="emergencyNote.set($event)" rows="3" placeholder="Décrivez brièvement la situation…"></textarea></label>
+      </div>
+      <footer><button type="button" class="secondary-button" (click)="sosOpen.set(false)">Annuler</button></footer>
+    </section>
+  </div>
+}
+
+@if (toast()) {
+  <div class="toast"><span><lucide-icon name="check" [size]="17"></lucide-icon></span><div><strong>{{ toastTitle() }}</strong><small>{{ toast() }}</small></div><button type="button" (click)="toast.set('')" aria-label="Fermer"><lucide-icon name="x" [size]="14"></lucide-icon></button></div>
+}

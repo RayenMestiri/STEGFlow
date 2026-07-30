@@ -1,0 +1,102 @@
+<section class="page-heading">
+  <div>
+    <span class="eyebrow"><i></i> CENTRE DES OPÉRATIONS · TEMPS RÉEL</span>
+    <h1>Signalements</h1>
+    <p>Qualifier les alertes citoyennes et organiser la réponse terrain</p>
+  </div>
+  <div class="heading-sync"><span><i></i> Synchronisé</span></div>
+</section>
+
+@if (pageError()) {
+  <div class="page-alert" role="alert"><lucide-icon name="triangle-alert" [size]="19"></lucide-icon><span>{{ pageError() }}</span><button type="button" (click)="loadData()">Réessayer</button></div>
+}
+
+<section class="metric-strip">
+  <article><span class="metric-icon danger"><lucide-icon name="siren" [size]="19"></lucide-icon></span><div><small>Critiques</small><strong>{{ dashboard()?.incidents?.critical ?? 0 }}</strong></div></article>
+  <article><span class="metric-icon warning"><lucide-icon name="inbox" [size]="19"></lucide-icon></span><div><small>À qualifier</small><strong>{{ dashboard()?.incidents?.open ?? 0 }}</strong></div></article>
+  <article><span class="metric-icon info"><lucide-icon name="users" [size]="19"></lucide-icon></span><div><small>Équipes disponibles</small><strong>{{ dashboard()?.teams?.available ?? 0 }}</strong></div></article>
+  <article><span class="metric-icon success"><lucide-icon name="badge-check" [size]="19"></lucide-icon></span><div><small>Total dossiers</small><strong>{{ incidentRecords().length }}</strong></div></article>
+</section>
+
+<section class="workspace-card">
+  <header class="workspace-toolbar">
+    <div class="segmented">
+      @for (filter of [{ value: 'all', label: 'Tous' },{ value: 'critical', label: 'Critiques' },{ value: 'high', label: 'Élevés' },{ value: 'medium', label: 'Moyens' }]; track filter.value) {
+        <button type="button" [class.active]="incidentFilter() === filter.value" (click)="incidentFilter.set(filter.value)">{{ filter.label }}</button>
+      }
+    </div>
+    <label class="global-search">
+      <lucide-icon name="search" [size]="17"></lucide-icon>
+      <input type="search" placeholder="Rechercher…" [ngModel]="globalQuery()" (ngModelChange)="globalQuery.set($event)" />
+    </label>
+    <span class="toolbar-note"><i></i>{{ filteredIncidents().length }} dossier(s)</span>
+  </header>
+  <div class="incident-board">
+    @for (incident of filteredIncidents(); track incident.id) {
+      <button class="incident-card" type="button" [attr.data-severity]="incident.severity" (click)="selectedIncident.set(incident)">
+        <span class="incident-card-top">
+          <i><lucide-icon [name]="incident.type === 'fire' ? 'flame' : incident.type === 'wire' ? 'cable' : incident.type === 'voltage' ? 'activity' : 'zap-off'" [size]="21"></lucide-icon></i>
+          <em class="status-pill" [attr.data-tone]="statusTone(incident.severity)">{{ incident.severity }}</em>
+        </span>
+        <strong>{{ incidentTypeLabel(incident.type) }}</strong>
+        <small class="incident-ref">{{ incident.reference }} · {{ relativeTime(incident.createdAt) }}</small>
+        <p><lucide-icon name="map-pin" [size]="13"></lucide-icon>{{ incident.address }}</p>
+        <span class="incident-card-foot">
+          <span><lucide-icon name="users" [size]="14"></lucide-icon>{{ incident.communityConfirmations }} confirmations</span>
+          <span>{{ incident.assignedTeamCode ?? 'Non affecté' }}</span>
+        </span>
+      </button>
+    } @empty {
+      <div class="empty-state wide"><lucide-icon name="badge-check" [size]="31"></lucide-icon><strong>Aucun signalement</strong><p>Le centre est à jour.</p></div>
+    }
+  </div>
+</section>
+
+@if (selectedIncident(); as incident) {
+  <aside class="detail-drawer incident-detail">
+    <header>
+      <div><span class="drawer-kicker">CENTRE DES SIGNALEMENTS</span><h2>{{ incident.reference }}</h2><p>{{ incidentTypeLabel(incident.type) }}</p></div>
+      <button type="button" (click)="selectedIncident.set(null)" aria-label="Fermer"><lucide-icon name="x" [size]="19"></lucide-icon></button>
+    </header>
+    <div class="drawer-scroll">
+      <div class="safety-banner" [class.critical]="incident.severity === 'critical'">
+        <lucide-icon name="triangle-alert" [size]="20"></lucide-icon>
+        <div><strong>{{ incident.severity === 'critical' ? 'Danger électrique confirmé' : 'Vérification requise' }}</strong></div>
+      </div>
+      <section class="detail-grid">
+        <article><small>Statut</small><strong>{{ statusLabel(incident.status) }}</strong></article>
+        <article><small>Priorité</small><strong>{{ incident.severity }}</strong></article>
+        <article><small>Confirmations</small><strong>{{ incident.communityConfirmations }}</strong></article>
+        <article><small>Équipe</small><strong>{{ incident.assignedTeamCode ?? 'À affecter' }}</strong></article>
+      </section>
+      <section class="drawer-section"><h3>Localisation</h3><p class="detail-copy">{{ incident.address }}</p><p class="detail-copy muted">{{ incident.description || 'Aucune description.' }}</p></section>
+      @if (incident.photos.length) {
+        <section class="drawer-section"><h3>Preuves photo</h3><div class="photo-grid">@for (photo of incident.photos; track photo) { <img [src]="photo" alt="Preuve" /> }</div></section>
+      }
+      <section class="drawer-section"><h3>Affecter une équipe</h3>
+        <div class="assign-control">
+          <select [ngModel]="assignmentTeamId()" (ngModelChange)="assignmentTeamId.set($event)">
+            <option value="">Sélectionner une équipe disponible</option>
+            @for (team of availableTeams(); track team.id) { <option [value]="team.id">{{ team.code }} · {{ team.base }}</option> }
+          </select>
+          <button class="primary-button" type="button" (click)="assignSelectedIncident()" [disabled]="!assignmentTeamId() || saving()">Affecter</button>
+        </div>
+      </section>
+      <section class="drawer-section"><h3>Historique</h3>
+        <div class="activity-list">
+          @for (activity of incident.activity ?? []; track activity.at) { <div><i></i><span><strong>{{ activity.label }}</strong><small>{{ activity.actor }} · {{ formatDate(activity.at) }}</small></span></div> }
+          @empty { <p class="detail-copy muted">Historique en cours de constitution.</p> }
+        </div>
+      </section>
+      <div class="drawer-actions split">
+        @if (incident.status === 'reported') { <button class="secondary-button" type="button" (click)="updateIncidentStatus(incident, 'verified')" [disabled]="saving()">Valider le signalement</button> }
+        @if (['verified','dispatched'].includes(incident.status)) { <button class="primary-button" type="button" (click)="updateIncidentStatus(incident, 'in_progress')" [disabled]="saving()">Passer en traitement</button> }
+        @if (incident.status === 'in_progress') { <button class="primary-button" type="button" (click)="updateIncidentStatus(incident, 'resolved')" [disabled]="saving()">Marquer résolu</button> }
+      </div>
+    </div>
+  </aside>
+}
+
+@if (toast()) {
+  <div class="toast"><span><lucide-icon name="check" [size]="17"></lucide-icon></span><div><strong>{{ toastTitle() }}</strong><small>{{ toast() }}</small></div><button type="button" (click)="toast.set('')" aria-label="Fermer"><lucide-icon name="x" [size]="14"></lucide-icon></button></div>
+}

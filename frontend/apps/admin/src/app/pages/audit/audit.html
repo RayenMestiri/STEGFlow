@@ -1,0 +1,27 @@
+<section class="audit-banner"><span><lucide-icon name="shield-check" [size]="25"></lucide-icon></span><div><strong>Journal immuable et centralisé</strong><p>Les connexions, validations, affectations et changements sont historisés.</p></div><button type="button" (click)="exportAudit()"><lucide-icon name="download" [size]="16"></lucide-icon>Exporter CSV</button></section>
+
+@if (pageError()) {
+  <div class="page-alert" role="alert"><lucide-icon name="triangle-alert" [size]="19"></lucide-icon><span>{{ pageError() }}</span><button type="button" (click)="loadData()">Réessayer</button></div>
+}
+
+<section class="workspace-card">
+  <header class="workspace-toolbar">
+    <div class="select-filter"><lucide-icon name="list-filter" [size]="15"></lucide-icon><select [ngModel]="auditFilter()" (ngModelChange)="auditFilter.set($event)"><option value="all">Toutes les catégories</option>@for (category of auditCategories(); track category) { <option [value]="category">{{ category }}</option> }</select></div>
+    <label class="global-search"><lucide-icon name="search" [size]="17"></lucide-icon><input type="search" placeholder="Rechercher…" [ngModel]="globalQuery()" (ngModelChange)="globalQuery.set($event)" /></label>
+    <span class="toolbar-note">{{ filteredAudit().length }} événement(s)</span>
+  </header>
+  <div class="audit-table">
+    <div class="table-head"><span>Événement</span><span>Acteur</span><span>Catégorie</span><span>Date</span><span>Résultat</span></div>
+    @for (entry of filteredAudit(); track entry.id) {
+      <article class="audit-row">
+        <span class="identity-cell"><i class="audit-dot" [attr.data-tone]="entry.severity"><lucide-icon [name]="entry.severity === 'critical' ? 'shield-alert' : entry.severity === 'success' ? 'badge-check' : 'history'" [size]="16"></lucide-icon></i><span><strong>{{ entry.title }}</strong><small>{{ entry.details }}</small></span></span>
+        <span><strong>{{ entry.actorName }}</strong><small>{{ entry.actorEmail }}</small></span>
+        <span><em class="category-pill">{{ entry.category }}</em></span>
+        <span><strong>{{ formatDate(entry.createdAt) }}</strong><small>{{ relativeTime(entry.createdAt) }}</small></span>
+        <span><em class="status-pill" [attr.data-tone]="entry.severity === 'critical' ? 'danger' : entry.severity">{{ entry.severity }}</em></span>
+      </article>
+    } @empty {
+      <div class="empty-state"><lucide-icon name="search-x" [size]="30"></lucide-icon><strong>Aucun événement trouvé</strong></div>
+    }
+  </div>
+</section>

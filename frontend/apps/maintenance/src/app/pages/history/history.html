@@ -1,0 +1,47 @@
+@if (pageError()) {
+  <div class="page-alert" role="alert"><lucide-icon name="triangle-alert" [size]="19"></lucide-icon><span>{{ pageError() }}</span><button type="button" (click)="loadData()">Réessayer</button></div>
+}
+
+<section class="workspace-card">
+  <header class="workspace-toolbar">
+    <h1>Historique missions</h1>
+    <label class="global-search">
+      <lucide-icon name="search" [size]="17"></lucide-icon>
+      <input type="search" placeholder="Rechercher…" [ngModel]="historySearch()" (ngModelChange)="historySearch.set($event)" />
+    </label>
+    <span class="toolbar-note">{{ filteredHistory().length }} mission(s)</span>
+  </header>
+  <div class="history-list">
+    @for (item of filteredHistory(); track item.id) {
+      <button class="history-row" type="button" (click)="selectedHistory.set(item)">
+        <span class="history-icon"><lucide-icon name="route" [size]="18"></lucide-icon></span>
+        <div class="history-main">
+          <strong>{{ item.reference }}</strong>
+          <small>{{ item.incidentType }} · {{ item.address }}</small>
+          <span>{{ formatDate(item.completedAt) }}</span>
+        </div>
+        <em>{{ item.durationMinutes }} min</em>
+        <lucide-icon name="chevron-right" [size]="17"></lucide-icon>
+      </button>
+    } @empty {
+      <div class="empty-state"><lucide-icon name="history" [size]="30"></lucide-icon><strong>Aucune mission dans l'historique</strong></div>
+    }
+  </div>
+</section>
+
+@if (selectedHistory(); as item) {
+  <aside class="detail-drawer">
+    <header><div><span class="drawer-kicker">MISSION CLÔTURÉE</span><h2>{{ item.reference }}</h2><p>{{ item.incidentType }}</p></div><button type="button" (click)="selectedHistory.set(null)" aria-label="Fermer"><lucide-icon name="x" [size]="19"></lucide-icon></button></header>
+    <div class="drawer-scroll">
+      <section class="detail-grid">
+        <article><small>Adresse</small><strong>{{ item.address }}</strong></article>
+        <article><small>Durée totale</small><strong>{{ item.durationMinutes }} min</strong></article>
+        <article><small>Clôturé le</small><strong>{{ formatDate(item.completedAt) }}</strong></article>
+        <article><small>Sévérité</small><strong>{{ severityLabel(item.severity) }}</strong></article>
+      </section>
+      @if (item.diagnosis) {
+        <section class="drawer-section"><h3>Diagnostic</h3><p class="detail-copy">{{ item.diagnosis }}</p></section>
+      }
+    </div>
+  </aside>
+}

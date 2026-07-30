@@ -1,0 +1,43 @@
+<div class="profile-page">
+  <section class="profile-card surface-card">
+    <div class="profile-avatar-section">
+      <div class="large-team-avatar">{{ auth.user()?.firstName?.charAt(0) }}{{ auth.user()?.lastName?.charAt(0) }}</div>
+      <div>
+        <h1>{{ auth.user()?.firstName }} {{ auth.user()?.lastName }}</h1>
+        <p>{{ dashboard()?.team?.code ?? 'Technicien STEG' }}</p>
+        <small>{{ auth.user()?.email }}</small>
+      </div>
+    </div>
+
+    @if (dashboard()?.team?.phone) {
+      <div class="profile-contact"><lucide-icon name="phone" [size]="16"></lucide-icon><span>{{ dashboard()?.team?.phone }}</span></div>
+    }
+
+    <div class="profile-skills">
+      @for (skill of (dashboard()?.team?.skills ?? []); track skill) { <span>{{ skill }}</span> }
+    </div>
+  </section>
+
+  <section class="stats-grid">
+    <article class="stat-card surface-card">
+      <span class="metric-icon info"><lucide-icon name="route" [size]="20"></lucide-icon></span>
+      <div><small>Missions totales</small><strong>{{ historyCount }}</strong></div>
+    </article>
+    <article class="stat-card surface-card">
+      <span class="metric-icon success"><lucide-icon name="clock" [size]="20"></lucide-icon></span>
+      <div><small>Durée moyenne</small><strong>{{ avgDuration }} min</strong></div>
+    </article>
+    <article class="stat-card surface-card">
+      <span class="metric-icon warning"><lucide-icon name="radio-tower" [size]="20"></lucide-icon></span>
+      <div><small>Statut</small><strong>{{ dashboard()?.team?.status ?? '—' }}</strong></div>
+    </article>
+  </section>
+
+  <section class="profile-actions surface-card">
+    <h2>Actions du compte</h2>
+    <button class="profile-action-btn danger" type="button" (click)="logout()">
+      <lucide-icon name="log-out" [size]="18"></lucide-icon>
+      Se déconnecter
+    </button>
+  </section>
+</div>

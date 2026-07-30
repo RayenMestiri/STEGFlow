@@ -1,0 +1,74 @@
+<div class="map-page-layout">
+  <aside class="map-sidebar">
+    <section class="map-filter-bar">
+      <h1>Carte réseau</h1>
+      <div class="segmented">
+        @for (f of [{ value: 'all', label: 'Tout' },{ value: 'active', label: 'En cours' },{ value: 'scheduled', label: 'Programmées' },{ value: 'incidents', label: 'Incidents' }]; track f.value) {
+          <button type="button" [class.active]="mapFilter() === f.value" (click)="setMapFilter($any(f.value))">{{ f.label }}</button>
+        }
+      </div>
+    </section>
+
+    <div class="map-stats">
+      <article><span class="metric-icon danger"><lucide-icon name="zap-off" [size]="18"></lucide-icon></span><div><small>En cours</small><strong>{{ activeMapOutageCount() }}</strong></div></article>
+      <article><span class="metric-icon warning"><lucide-icon name="calendar-clock" [size]="18"></lucide-icon></span><div><small>Programmées</small><strong>{{ scheduledMapOutageCount() }}</strong></div></article>
+      <article><span class="metric-icon danger"><lucide-icon name="siren" [size]="18"></lucide-icon></span><div><small>Incidents</small><strong>{{ filteredMapIncidents().length }}</strong></div></article>
+    </div>
+
+    @if (selectedMapItem(); as item) {
+      <div class="map-selection-card">
+        @if (item.kind === 'outage') {
+          <header><span class="drawer-kicker">COUPURE</span><button type="button" (click)="selectedMapItem.set(null)" aria-label="Fermer"><lucide-icon name="x" [size]="16"></lucide-icon></button></header>
+          <strong>{{ item.value.zoneLabel }}</strong>
+          <em [attr.data-tone]="statusTone(item.value.status)">{{ statusLabel(item.value.status) }}</em>
+          <small>{{ item.value.reason }}</small>
+          <dl><dt>Clients affectés</dt><dd>{{ item.value.affectedCustomers.toLocaleString('fr-FR') }}</dd><dt>Début</dt><dd>{{ formatDate(item.value.startsAt) }}</dd><dt>Durée estimée</dt><dd>{{ item.value.durationMinutes }} min</dd></dl>
+        } @else {
+          <header><span class="drawer-kicker">INCIDENT</span><button type="button" (click)="selectedMapItem.set(null)" aria-label="Fermer"><lucide-icon name="x" [size]="16"></lucide-icon></button></header>
+          <strong>{{ incidentTypeLabel(item.value.type) }}</strong>
+          <em>{{ severityLabel(item.value.severity) }}</em>
+          <small>{{ item.value.zoneLabel }}</small>
+          <dl><dt>Confirmations</dt><dd>{{ item.value.communityConfirmations }}</dd></dl>
+        }
+      </div>
+    } @else {
+      <div class="map-list">
+        @for (outage of filteredMapOutages(); track outage.id) {
+          <button class="map-list-row" type="button" (click)="selectMapOutage(outage)">
+            <span class="row-icon amber"><lucide-icon name="zap-off" [size]="17"></lucide-icon></span>
+            <span><strong>{{ outage.zoneLabel }}</strong><small>{{ outage.reason }} · {{ outage.affectedCustomers.toLocaleString('fr-FR') }} clients</small></span>
+            <em [attr.data-tone]="statusTone(outage.status)">{{ statusLabel(outage.status) }}</em>
+          </button>
+        }
+        @for (incident of filteredMapIncidents(); track incident.id) {
+          <button class="map-list-row" type="button" (click)="selectMapIncident(incident)">
+            <span class="row-icon red"><lucide-icon name="siren" [size]="17"></lucide-icon></span>
+            <span><strong>{{ incidentTypeLabel(incident.type) }}</strong><small>{{ incident.zoneLabel }} · {{ incident.communityConfirmations }} confirmations</small></span>
+            <em>{{ severityLabel(incident.severity) }}</em>
+          </button>
+        }
+        @if (filteredMapOutages().length === 0 && filteredMapIncidents().length === 0) {
+          <div class="compact-empty"><lucide-icon name="badge-check" [size]="24"></lucide-icon>Aucun événement dans ce filtre.</div>
+        }
+      </div>
+    }
+  </aside>
+
+  <div class="map-canvas-area">
+    @if (pageError()) {
+      <div class="page-alert"><lucide-icon name="triangle-alert" [size]="19"></lucide-icon><span>{{ pageError() }}</span><button type="button" (click)="loadData()">Réessayer</button></div>
+    }
+    <div #outageMapCanvas class="map-canvas full" aria-label="Carte interactive des coupures et incidents STEG"></div>
+    @if (!mapReady()) { <div class="map-loading"><span></span>Chargement de la carte…</div> }
+    <div class="map-controls">
+      <button type="button" (click)="zoomOutageMap(1)" aria-label="Zoom avant">+</button>
+      <button type="button" (click)="zoomOutageMap(-1)" aria-label="Zoom arrière">−</button>
+      <button type="button" (click)="centerOutageMap()" aria-label="Recentrer"><lucide-icon name="locate-fixed" [size]="16"></lucide-icon></button>
+    </div>
+    <div class="map-legend">
+      <span><i class="red-dot"></i> Incident</span>
+      <span><i class="amber-dot"></i> Coupure</span>
+      <span><i class="home-dot"></i> Mon adresse</span>
+    </div>
+  </div>
+</div>

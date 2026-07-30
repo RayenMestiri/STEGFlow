@@ -1,0 +1,215 @@
+@if (pageError()) {
+  <div class="page-alert" role="alert">
+    <lucide-icon name="triangle-alert" [size]="19"></lucide-icon>
+    <span>{{ pageError() }}</span>
+    <button type="button" (click)="loadData()">Réessayer</button>
+  </div>
+}
+
+@if (loading() && !dashboard()) {
+  <section class="skeleton-grid" aria-label="Chargement">
+    @for (item of [1, 2, 3, 4, 5, 6]; track item) { <span></span> }
+  </section>
+} @else {
+  <section class="welcome-row">
+    <div>
+      <span class="eyebrow"><i></i> SUPERVISION NATIONALE</span>
+      <h1>Bonjour, <span>le réseau est sous contrôle.</span></h1>
+      <p>Les données terrain, citoyennes et de notification sont consolidées en temps réel.</p>
+    </div>
+    <div class="last-sync">
+      <lucide-icon name="shield-check" [size]="18"></lucide-icon>
+      <div>
+        <small>Dernière synchronisation</small>
+        <strong>{{ dashboard()?.generatedAt ? relativeTime(dashboard()?.generatedAt) : '—' }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="kpi-grid" aria-label="Indicateurs clés">
+    <article class="kpi-card emerald">
+      <div class="kpi-top">
+        <span class="kpi-icon"><lucide-icon name="gauge" [size]="20"></lucide-icon></span>
+        <em>objectif {{ dashboard()?.monthlyTarget ?? 98.5 }}%</em>
+      </div>
+      <small>Disponibilité du réseau</small>
+      <div class="kpi-value">{{ dashboard()?.networkAvailability ?? 0 }}<span>%</span></div>
+      <div class="progress-track"><i [style.width.%]="dashboard()?.networkAvailability ?? 0"></i></div>
+      <p>Mesure consolidée sur les secteurs supervisés</p>
+    </article>
+
+    <article class="kpi-card amber">
+      <div class="kpi-top">
+        <span class="kpi-icon"><lucide-icon name="zap-off" [size]="20"></lucide-icon></span>
+        <em>{{ dashboard()?.outages?.active ?? 0 }} active(s)</em>
+      </div>
+      <small>Coupures suivies</small>
+      <div class="kpi-value">{{ dashboard()?.outages?.total ?? 0 }}</div>
+      <p><strong>{{ dashboard()?.outages?.scheduled ?? 0 }} programmée(s)</strong> · {{ (dashboard()?.outages?.affectedCustomers ?? 0).toLocaleString('fr-FR') }} clients</p>
+    </article>
+
+    <article class="kpi-card red">
+      <div class="kpi-top">
+        <span class="kpi-icon"><lucide-icon name="siren" [size]="20"></lucide-icon></span>
+        <em>{{ dashboard()?.incidents?.critical ?? 0 }} critique(s)</em>
+      </div>
+      <small>Signalements ouverts</small>
+      <div class="kpi-value">{{ dashboard()?.incidents?.open ?? 0 }}</div>
+      <p><strong>{{ incidentRecords().length }}</strong> dossiers enregistrés</p>
+    </article>
+
+    <article class="kpi-card blue">
+      <div class="kpi-top">
+        <span class="kpi-icon"><lucide-icon name="users" [size]="20"></lucide-icon></span>
+        <em>{{ dashboard()?.teams?.connected ?? 0 }} connectée(s)</em>
+      </div>
+      <small>Équipes disponibles</small>
+      <div class="kpi-value">{{ dashboard()?.teams?.available ?? 0 }}<span>/{{ dashboard()?.teams?.total ?? 0 }}</span></div>
+      <div class="avatar-stack">
+        @for (team of teams().slice(0, 3); track team.id) { <b>{{ team.code.replace('Équipe ', 'É') }}</b> }
+        @if (teams().length > 3) { <b>+{{ teams().length - 3 }}</b> }
+      </div>
+    </article>
+  </section>
+
+  <section class="operations-grid">
+    <article class="panel map-panel">
+      <div class="panel-header">
+        <div>
+          <span class="section-icon"><lucide-icon name="map" [size]="18"></lucide-icon></span>
+          <div><h2>Carte opérationnelle</h2><p>Incidents, coupures et équipes en direct</p></div>
+        </div>
+        <div class="panel-actions">
+          <button type="button" [class.active]="operationalLayersVisible()" (click)="toggleLayers()">
+            <lucide-icon name="layers" [size]="16"></lucide-icon> Calques
+          </button>
+          <button type="button" (click)="centerMap()" aria-label="Recentrer la carte">
+            <lucide-icon name="locate-fixed" [size]="16"></lucide-icon>
+          </button>
+        </div>
+      </div>
+      <div class="network-map">
+        <div #networkMapCanvas class="map-canvas" aria-label="Carte interactive du réseau STEG"></div>
+        @if (!mapReady()) { <div class="map-loading"><span></span>Chargement de la carte…</div> }
+        <div class="map-status">
+          <i></i>
+          <span><strong>Suivi temps réel</strong><small>{{ dashboard()?.teams?.connected ?? 0 }} équipes connectées</small></span>
+        </div>
+        <div class="map-legend">
+          <span><i class="red-dot"></i> Incident critique</span>
+          <span><i class="amber-dot"></i> Coupure</span>
+          <span><i class="green-dot"></i> Équipe</span>
+        </div>
+        <div class="map-zoom">
+          <button type="button" (click)="zoomMap(1)" aria-label="Zoom avant">+</button>
+          <button type="button" (click)="zoomMap(-1)" aria-label="Zoom arrière">−</button>
+        </div>
+      </div>
+    </article>
+
+    <aside class="right-column">
+      <article class="panel incident-panel">
+        <div class="panel-header compact">
+          <div>
+            <span class="section-icon danger"><lucide-icon name="siren" [size]="18"></lucide-icon></span>
+            <div><h2>À traiter maintenant</h2><p>Priorité calculée automatiquement</p></div>
+          </div>
+          <button class="text-button" type="button" (click)="goToIncidents()">Tout voir</button>
+        </div>
+        <div class="incident-list">
+          @for (incident of priorityIncidents(); track incident.id) {
+            <button class="incident-row" type="button" (click)="goToIncidents()">
+              <span class="incident-symbol" [class.fire]="incident.severity === 'critical'">
+                <lucide-icon [name]="incident.type === 'fire' ? 'flame' : incident.type === 'voltage' ? 'activity' : 'zap-off'" [size]="18"></lucide-icon>
+              </span>
+              <span class="incident-copy">
+                <span><strong>{{ incidentTypeLabel(incident.type) }}</strong><em [class.critical]="incident.severity === 'critical'">{{ incident.severity }}</em></span>
+                <small><lucide-icon name="map-pin" [size]="12"></lucide-icon>{{ incident.address }}</small>
+                <small>{{ relativeTime(incident.createdAt) }} · {{ incident.communityConfirmations }} confirmations</small>
+              </span>
+              <lucide-icon name="chevron-down" class="row-chevron" [size]="16"></lucide-icon>
+            </button>
+          } @empty {
+            <div class="compact-empty"><lucide-icon name="badge-check" [size]="20"></lucide-icon>Aucun incident prioritaire.</div>
+          }
+        </div>
+      </article>
+
+      <article class="panel team-panel">
+        <div class="panel-header compact">
+          <div>
+            <span class="section-icon blue"><lucide-icon name="navigation" [size]="18"></lucide-icon></span>
+            <div>
+              <h2>{{ operationsMissions()[0]?.teamCode ?? 'Aucune équipe en trajet' }}</h2>
+              <p>{{ operationsMissions()[0]?.reference ?? 'Toutes les missions sont à jour' }}</p>
+            </div>
+          </div>
+          @if (operationsMissions().length) { <span class="live-pill"><i></i> LIVE</span> }
+        </div>
+        @if (operationsMissions()[0]; as mission) {
+          <div class="team-progress">
+            <div class="team-avatar">{{ mission.teamCode.replace('Équipe ', '') }}</div>
+            <div class="team-eta">
+              <small>Arrivée estimée</small>
+              <strong>{{ mission.etaMinutes ?? '—' }} min</strong>
+              <span>{{ statusLabel(mission.status) }}</span>
+            </div>
+            <div class="eta-ring"><strong>68%</strong><small>trajet</small></div>
+          </div>
+          <div class="progress-line"><i></i><span></span></div>
+          <div class="team-footer">
+            <span><lucide-icon name="clock-3" [size]="14"></lucide-icon>{{ relativeTime(mission.lastPositionAt) }}</span>
+            <button type="button" (click)="goToTeams()">Ouvrir le suivi <lucide-icon name="navigation" [size]="14"></lucide-icon></button>
+          </div>
+        } @else {
+          <div class="compact-empty">Aucun déplacement actif.</div>
+        }
+      </article>
+    </aside>
+  </section>
+
+  <section class="bottom-grid">
+    <article class="panel schedule-panel">
+      <div class="panel-header compact">
+        <div>
+          <span class="section-icon amber"><lucide-icon name="calendar-clock" [size]="18"></lucide-icon></span>
+          <div><h2>Prochaines coupures</h2><p>Programme prévisionnel</p></div>
+        </div>
+        <button class="filter-button" type="button" (click)="goToOutages()">
+          <lucide-icon name="arrow-up-right" [size]="15"></lucide-icon> Ouvrir
+        </button>
+      </div>
+      <div class="schedule-list">
+        @for (outage of outages().slice(0, 3); track outage.id) {
+          <button class="schedule-row" type="button" (click)="goToOutages()">
+            <span class="time-box"><strong>{{ formatTime(outage.startsAt) }}</strong><small>{{ outage.durationMinutes }} min</small></span>
+            <span><strong>{{ outage.zoneLabel }}</strong><small>{{ outage.reason }} · {{ outage.affectedCustomers.toLocaleString('fr-FR') }} clients</small></span>
+            <em [class.pending]="outage.status === 'pending_approval'">{{ statusLabel(outage.status) }}</em>
+          </button>
+        } @empty {
+          <div class="compact-empty">Aucune coupure programmée.</div>
+        }
+      </div>
+    </article>
+
+    <article class="panel notification-panel">
+      <div class="panel-header compact">
+        <div>
+          <span class="section-icon violet"><lucide-icon name="send" [size]="18"></lucide-icon></span>
+          <div><h2>Notifications</h2><p>Performance cumulée</p></div>
+        </div>
+        <button class="text-button" type="button" (click)="goToNotifications()">Détails</button>
+      </div>
+      <div class="delivery-score">
+        <div><strong>{{ dashboard()?.notifications?.deliveryRate ?? 0 }}%</strong><small>Taux de livraison</small></div>
+        <span><b>{{ (dashboard()?.notifications?.delivered ?? 0).toLocaleString('fr-FR') }}</b> livrées</span>
+        <span><b>{{ dashboard()?.notifications?.failed ?? 0 }}</b> à relancer</span>
+      </div>
+      <div class="channel-bars">
+        <span><small>Push mobile</small><i><b style="width:92%"></b></i><em>92%</em></span>
+        <span><small>SMS</small><i><b style="width:79%"></b></i><em>79%</em></span>
+        <span><small>E-mail</small><i><b style="width:61%"></b></i><em>61%</em></span>
+      </div>
+    </article>
+  </section>
+}

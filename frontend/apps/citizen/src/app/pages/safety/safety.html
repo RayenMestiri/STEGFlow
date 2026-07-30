@@ -1,0 +1,82 @@
+@if (pageError()) {
+  <div class="page-alert" role="alert"><lucide-icon name="triangle-alert" [size]="19"></lucide-icon><span>{{ pageError() }}</span><button type="button" (click)="loadData()">Réessayer</button></div>
+}
+
+<section class="safety-hero">
+  <span class="safety-hero-icon"><lucide-icon name="shield-alert" [size]="36"></lucide-icon></span>
+  <div>
+    <h1>Aide &amp; sécurité électrique</h1>
+    <p>Consignes vérifiées par la STEG. En cas de danger immédiat, appelez le <strong>{{ safety()?.emergency?.displayPhone ?? '198' }}</strong>.</p>
+  </div>
+  <a class="emergency-call" [href]="'tel:' + (safety()?.emergency?.phone ?? '198')">
+    <lucide-icon name="phone-call" [size]="20"></lucide-icon>
+    <span>{{ safety()?.emergency?.displayPhone ?? '198' }}</span>
+  </a>
+</section>
+
+@if (safety(); as data) {
+  <div class="contact-strip">
+    <a class="contact-card" [href]="'tel:' + data.emergency.phone">
+      <span><lucide-icon name="siren" [size]="20"></lucide-icon></span>
+      <div><strong>{{ data.emergency.label }}</strong><small>{{ data.emergency.displayPhone }} · {{ data.emergency.description }}</small></div>
+    </a>
+    <a class="contact-card" [href]="'tel:' + data.service.phone">
+      <span><lucide-icon name="headphones" [size]="20"></lucide-icon></span>
+      <div><strong>{{ data.service.label }}</strong><small>{{ data.service.displayPhone }} · {{ data.service.description }}</small></div>
+    </a>
+  </div>
+
+  @if (data.guides?.length) {
+    <section class="guides-grid">
+      <h2 class="section-label">Guides de sécurité</h2>
+      @for (guide of data.guides; track guide.id) {
+        <button class="guide-card" type="button" (click)="openGuide(guide)">
+          <span class="guide-icon" [attr.data-tone]="guide.tone"><lucide-icon [name]="guide.icon ?? 'shield-alert'" [size]="26"></lucide-icon></span>
+          <div><strong>{{ guide.title }}</strong><small>{{ guide.summary }}</small></div>
+          <lucide-icon name="chevron-right" [size]="18"></lucide-icon>
+        </button>
+      }
+    </section>
+  }
+
+  @if (data.faqs?.length) {
+    <section class="faq-section">
+      <h2 class="section-label">Questions fréquentes</h2>
+      @for (faq of data.faqs; track faq.id) {
+        <div class="faq-item" [class.open]="expandedFaq() === faq.id">
+          <button class="faq-trigger" type="button" (click)="toggleFaq(faq.id)">
+            <span>{{ faq.question }}</span>
+            <lucide-icon name="chevron-down" [size]="18"></lucide-icon>
+          </button>
+          @if (expandedFaq() === faq.id) {
+            <div class="faq-answer">{{ faq.answer }}</div>
+          }
+        </div>
+      }
+    </section>
+  }
+} @else if (loading()) {
+  <div class="safety-loading"><span></span>Chargement des consignes…</div>
+} @else {
+  <div class="safety-fallback">
+    <lucide-icon name="shield-alert" [size]="32"></lucide-icon>
+    <h2>Consignes de sécurité STEG</h2>
+    <p>En cas de danger électrique, restez à distance et appelez le <strong>198</strong> ou le <strong>197</strong>.</p>
+    <a class="emergency-call" href="tel:198"><lucide-icon name="phone-call" [size]="18"></lucide-icon>Appeler le 198</a>
+  </div>
+}
+
+@if (selectedGuide(); as guide) {
+  <div class="modal-backdrop" (click)="selectedGuide.set(null)">
+    <section class="modal-card guide-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <header><div><span class="modal-icon"><lucide-icon [name]="guide.icon ?? 'shield-alert'" [size]="21"></lucide-icon></span><div><small>GUIDE DE SÉCURITÉ</small><h2>{{ guide.title }}</h2></div></div><button type="button" (click)="selectedGuide.set(null)" aria-label="Fermer"><lucide-icon name="x" [size]="20"></lucide-icon></button></header>
+      <div class="modal-body guide-body">
+        <p>{{ guide.summary }}</p>
+        @if (guide.steps?.length) {
+          <ol class="guide-steps">@for (step of guide.steps; track $index) { <li>{{ step }}</li> }</ol>
+        }
+      </div>
+      <footer><button type="button" class="primary-button" (click)="selectedGuide.set(null)">Fermer</button></footer>
+    </section>
+  </div>
+}
